@@ -74,8 +74,8 @@ pub mod tick_manager {
         tick_index: i32,
         liquidity_delta: i128,
         is_upper_tick: bool,
-        fee_growth_global_0: u128,
-        fee_growth_global_1: u128,
+        _fee_growth_global_0: u128,
+        _fee_growth_global_1: u128,
     ) -> Result<()> {
         validate_tick(tick_index)?;
         validate_tick_spacing(tick_index)?;
@@ -87,7 +87,7 @@ pub mod tick_manager {
             .get_tick_mut(tick_index)
             .ok_or(TickManagerError::TickNotInitialized)?;
 
-        let was_initialized = tick.initialized;
+        let was_initialized = tick.initialized != 0;
 
         // Update gross liquidity (always positive)
         tick.liquidity_gross = if liquidity_delta > 0 {
@@ -111,7 +111,7 @@ pub mod tick_manager {
 
         // Initialize fee snapshot if this is the first time this tick is being used
         if !was_initialized && tick.liquidity_gross > 0 {
-            tick.initialized = true;
+            tick.initialized = 1;
             // Fee growth "outside" starts at 0 if current tick is below this tick,
             // or at current global if current tick is above (simplified: always 0 at init)
             tick.fee_growth_outside_0 = 0;
@@ -120,14 +120,14 @@ pub mod tick_manager {
 
         // Clear initialized flag if no more liquidity references this tick
         if tick.liquidity_gross == 0 {
-            tick.initialized = false;
+            tick.initialized = 0;
             tick.fee_growth_outside_0 = 0;
             tick.fee_growth_outside_1 = 0;
         }
 
         // Update bitmap: flip bit if initialized status changed
         let is_now_initialized = tick.liquidity_gross > 0;
-        drop(tick_array); // release borrow before accessing bitmap
+        let _ = tick_array; // release borrow before accessing bitmap
 
         if was_initialized != is_now_initialized {
             let array_index = array_start_to_bitmap_index(
@@ -173,7 +173,7 @@ pub mod tick_manager {
             .get_tick_mut(tick_index)
             .ok_or(TickManagerError::TickNotInitialized)?;
 
-        require!(tick.initialized, TickManagerError::TickNotInitialized);
+        require!(tick.initialized != 0, TickManagerError::TickNotInitialized);
 
         // Flip fee_growth_outside: new_outside = global - old_outside
         // This is the standard Uniswap V3 trick that makes per-position fee
@@ -226,7 +226,7 @@ pub mod tick_manager {
             let mut candidate = current_tick - TICK_SPACING;
             while candidate >= start {
                 if let Some(tick) = tick_array.get_tick(candidate) {
-                    if tick.initialized {
+                    if tick.initialized != 0 {
                         return Ok(candidate);
                     }
                 }
@@ -237,7 +237,7 @@ pub mod tick_manager {
             let mut candidate = current_tick + TICK_SPACING;
             while candidate < end {
                 if let Some(tick) = tick_array.get_tick(candidate) {
-                    if tick.initialized {
+                    if tick.initialized != 0 {
                         return Ok(candidate);
                     }
                 }
@@ -282,26 +282,10 @@ pub struct InitializeTickArray<'info> {
 #[derive(Accounts)]
 #[instruction(tick_index: i32)]
 pub struct UpdateTick<'info> {
-    #[account(
-        mut,
-        seeds = [
-            b"tick_array",
-            pool.key().as_ref(),
-            &tick_to_array_start_tick(tick_index).to_le_bytes(),
-        ],
-        bump
-    )]
+    #[account(mut)]
     pub tick_array: AccountLoader<'info, TickArray>,
 
-    #[account(
-        mut,
-        seeds = [
-            b"tick_bitmap",
-            pool.key().as_ref(),
-            &bitmap_word_and_bit(array_start_to_bitmap_index(tick_to_array_start_tick(tick_index))).0.to_le_bytes(),
-        ],
-        bump
-    )]
+    #[account(mut)]
     pub tick_bitmap: Account<'info, TickBitmap>,
 
     /// CHECK: pool pubkey, validated by PDA seeds
@@ -314,15 +298,7 @@ pub struct UpdateTick<'info> {
 #[derive(Accounts)]
 #[instruction(tick_index: i32)]
 pub struct CrossTick<'info> {
-    #[account(
-        mut,
-        seeds = [
-            b"tick_array",
-            pool.key().as_ref(),
-            &tick_to_array_start_tick(tick_index).to_le_bytes(),
-        ],
-        bump
-    )]
+    #[account(mut)]
     pub tick_array: AccountLoader<'info, TickArray>,
 
     /// CHECK: pool pubkey, validated by PDA seeds

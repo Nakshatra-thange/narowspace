@@ -13,6 +13,7 @@
 use anchor_lang::prelude::*;
 use crate::math::{TICKS_PER_ARRAY, ARRAYS_PER_BITMAP_WORD};
 
+
 // ─── TickData ──────────────────────────────────────────────────────────────────
 
 /// One slot inside a TickArray. Represents a single price checkpoint.
@@ -41,14 +42,13 @@ use crate::math::{TICKS_PER_ARRAY, ARRAYS_PER_BITMAP_WORD};
 ///   True if at least one LP position references this tick.
 ///   Uninitialized ticks are skipped during swap.
 #[zero_copy]
-#[derive(Default)]
 #[repr(C)]
 pub struct TickData {
     pub liquidity_net:         i128,  // signed: +add or -remove liquidity when crossed
     pub liquidity_gross:       u128,  // total references to this tick
     pub fee_growth_outside_0:  u128,  // fee accumulator for token0
     pub fee_growth_outside_1:  u128,  // fee accumulator for token1
-    pub initialized:           bool,
+    pub initialized:           u8,
     pub _padding:              [u8; 15], // align to 16 bytes
 }
 
@@ -71,12 +71,14 @@ pub struct TickData {
 ///
 /// pool: which pool this array belongs to (one pool = its own set of tick arrays)
 #[account(zero_copy)]
+
 #[repr(C)]
 pub struct TickArray {
     pub start_tick_index: i32,
     pub _padding0: [u8; 4],        // align start_tick to 8 bytes
     pub pool: Pubkey,              // 32 bytes
-    pub ticks: [TickData; 88],     // 88 × 64 bytes = 5,632 bytes
+    pub _padding1: [u8; 8],        // align tick storage to 16 bytes
+    pub ticks: [[TickData; 11]; 8], // 88 × 64 bytes = 5,632 bytes
 }
 
 impl TickArray {
@@ -85,7 +87,7 @@ impl TickArray {
     /// start_tick_index: 4 bytes + 4 padding
     /// pool: 32 bytes
     /// ticks: 88 × 64 bytes = 5,632 bytes
-    pub const LEN: usize = 8 + 4 + 4 + 32 + (88 * 64);
+    pub const LEN: usize = 8 + 4 + 4 + 32 + 8 + (88 * 80);
 
     /// Get the tick data at a given absolute tick index.
     /// Validates that the tick belongs to this array.
@@ -95,7 +97,10 @@ impl TickArray {
             return None; // tick doesn't belong to this array
         }
         let offset = (tick_index - self.start_tick_index) / crate::math::TICK_SPACING;
-        self.ticks.get(offset as usize)
+        let offset = offset as usize;
+        let chunk = offset / 11;
+        let slot = offset % 11;
+        self.ticks.get(chunk).and_then(|ticks| ticks.get(slot))
     }
 
     /// Mutable version of get_tick.
@@ -105,7 +110,10 @@ impl TickArray {
             return None;
         }
         let offset = (tick_index - self.start_tick_index) / crate::math::TICK_SPACING;
-        self.ticks.get_mut(offset as usize)
+        let offset = offset as usize;
+        let chunk = offset / 11;
+        let slot = offset % 11;
+        self.ticks.get_mut(chunk).and_then(|ticks| ticks.get_mut(slot))
     }
 }
 

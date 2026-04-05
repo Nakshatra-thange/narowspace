@@ -1,8 +1,10 @@
 {
   "license": "ISC",
+  "type":"module",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
+     "verify-math": "ts-node sdk/src/verify_math.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "^0.32.1"

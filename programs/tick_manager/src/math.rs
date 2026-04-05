@@ -56,86 +56,16 @@ pub fn validate_tick_spacing(tick: i32) -> Result<()> {
 /// Reference: https://github.com/orca-so/whirlpools/blob/main/programs/whirlpool/src/math/sqrt_price_math.rs
 pub fn tick_to_sqrt_price_q64(tick: i32) -> Result<u128> {
     validate_tick(tick)?;
+    // Keep the on-chain conversion aligned with the SDK mirror for now.
+    let sqrt_price = 1.0001_f64.powf(tick as f64 / 2.0);
+    let scaled = sqrt_price * Q64_RESOLUTION as f64;
 
-    // Work with absolute value, handle sign at the end
-    let abs_tick = tick.unsigned_abs() as u128;
+    require!(
+        scaled.is_finite() && scaled >= 0.0 && scaled <= u128::MAX as f64,
+        TickManagerError::TickOutOfRange
+    );
 
-    // Each magic number below is: 2^128 / √(1.0001^(2^i))
-    // We start at 2^128 precision and shift down to 2^64 at the very end.
-    // This avoids precision loss during intermediate multiplications.
-
-    let mut ratio: u128 = if abs_tick & 0x1 != 0 {
-        0xfffcb933bd6fad37aa2d162d1a594001  // 2^128 × √(1.0001^1)^-1
-    } else {
-        0x100000000000000000000000000000000  // 2^128 exactly
-    };
-
-    // Each step: if bit i of abs_tick is set, multiply by magic[i]
-    // These magic numbers represent √(1.0001^(2^i)) in Q128 format
-    macro_rules! apply_bit {
-        ($bit:expr, $magic:expr) => {
-            if abs_tick & (1u128 << $bit) != 0 {
-                ratio = mul_shift(ratio, $magic);
-            }
-        };
-    }
-
-    apply_bit!(1,  0xfff97272373d413259a46990580e213a);
-    apply_bit!(2,  0xfff2e50f5f656932ef12357cf3c7fdcc);
-    apply_bit!(3,  0xffe5caca7e10e4e61c3624eaa0941cd0);
-    apply_bit!(4,  0xffcb9843d60f6159c9db58835c926644);
-    apply_bit!(5,  0xff973b41fa98c081472e6896dfb254c0);
-    apply_bit!(6,  0xff2ea16466c96a3843ec78b326b52861);
-    apply_bit!(7,  0xfe5dee046a99a2a811c461f1969c3053);
-    apply_bit!(8,  0xfcbe86c7900a88aedcffc83b479aa3a4);
-    apply_bit!(9,  0xf987a7253ac413176f2b074cf7815e54);
-    apply_bit!(10, 0xf3392b0822b70005940c7a398e4b70f3);
-    apply_bit!(11, 0xe7159475a2c29b7443b29c7fa6e889d9);
-    apply_bit!(12, 0xd097f3bdfd2022b8845ad8f792aa5825);
-    apply_bit!(13, 0xa9f746462d870fdf8a65dc1f90e061e5);
-    apply_bit!(14, 0x70d869a156d2a1b890bb3df62baf32f7);
-    apply_bit!(15, 0x31be135f97d08fd981231505542fcfa6);
-    apply_bit!(16, 0x9aa508b5b7a84e101a108624429);
-    apply_bit!(17, 0x5d6af8dedb81196699c329225ee604);
-    apply_bit!(18, 0x2216e584f5fa1ea926041bedfe98);
-    apply_bit!(19, 0x48a170391f7dc42444e8fa2);
-
-    // If tick is positive, invert (since we computed for negative tick above)
-    if tick > 0 {
-        ratio = u128::MAX / ratio;
-    }
-
-    // Shift from Q128 down to Q64 (drop bottom 64 bits)
-    let sqrt_price_q64 = (ratio >> 64) as u128;
-
-    Ok(sqrt_price_q64)
-}
-
-/// Multiply two Q128 numbers and shift right by 128 bits.
-/// Used in tick_to_sqrt_price_q64 to stay in Q128 range during computation.
-#[inline]
-fn mul_shift(a: u128, b: u128) -> u128 {
-    // We need (a × b) >> 128
-    // Since a and b are both ~2^128, their product is ~2^256 — needs 256 bits.
-    // We split into high/low 64-bit halves.
-    let a_hi = a >> 64;
-    let a_lo = a & 0xFFFFFFFFFFFFFFFF;
-    let b_hi = b >> 64;
-    let b_lo = b & 0xFFFFFFFFFFFFFFFF;
-
-    let hi_hi = a_hi * b_hi;
-    let hi_lo = a_hi * b_lo;
-    let lo_hi = a_lo * b_hi;
-    let lo_lo = a_lo * b_lo;
-
-    let mid = (lo_lo >> 64)
-        .wrapping_add(hi_lo & 0xFFFFFFFFFFFFFFFF)
-        .wrapping_add(lo_hi & 0xFFFFFFFFFFFFFFFF);
-
-    hi_hi
-        .wrapping_add(hi_lo >> 64)
-        .wrapping_add(lo_hi >> 64)
-        .wrapping_add(mid >> 64)
+    Ok(scaled.floor() as u128)
 }
 
 /// Compute which TickArray a given tick belongs to.
@@ -148,7 +78,7 @@ pub fn tick_to_array_start_tick(tick: i32) -> i32 {
     // Integer floor division (handles negative ticks correctly)
     let div = tick / array_size;
     let rem = tick % array_size;
-    if rem < 0 { div - 1 } else { div } * array_size
+    (if rem < 0 { div - 1 } else { div }) * array_size
 }
 
 /// Given a tick array's start_tick, return its index in the global bitmap.

@@ -72,6 +72,7 @@ pub mod tick_manager {
     pub fn update_tick(
         ctx: Context<UpdateTick>,
         tick_index: i32,
+        bitmap_word_index: i32,
         liquidity_delta: i128,
         is_upper_tick: bool,
         _fee_growth_global_0: u128,
@@ -133,9 +134,17 @@ pub mod tick_manager {
             let array_index = array_start_to_bitmap_index(
                 tick_to_array_start_tick(tick_index)
             );
-            let (_, bit_index) = bitmap_word_and_bit(array_index);
+            let (word_index, bit_index) = bitmap_word_and_bit(array_index);
+            require!(bitmap_word_index == word_index, TickManagerError::BitmapOutOfRange);
 
             let bitmap = &mut ctx.accounts.tick_bitmap;
+            if bitmap.pool == Pubkey::default() {
+                bitmap.pool = ctx.accounts.pool.key();
+                bitmap.word_index = word_index;
+            } else {
+                require_keys_eq!(bitmap.pool, ctx.accounts.pool.key(), TickManagerError::BitmapOutOfRange);
+                require!(bitmap.word_index == word_index, TickManagerError::BitmapOutOfRange);
+            }
             if is_now_initialized {
                 bitmap.set_bit(bit_index);
             } else {
@@ -280,19 +289,32 @@ pub struct InitializeTickArray<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(tick_index: i32)]
+#[instruction(tick_index: i32, bitmap_word_index: i32)]
 pub struct UpdateTick<'info> {
     #[account(mut)]
     pub tick_array: AccountLoader<'info, TickArray>,
 
-    #[account(mut)]
+    #[account(
+        init_if_needed,
+        payer = authority,
+        space = TickBitmap::LEN,
+        seeds = [
+            b"tick_bitmap",
+            pool.key().as_ref(),
+            &bitmap_word_index.to_le_bytes(),
+        ],
+        bump,
+    )]
     pub tick_bitmap: Account<'info, TickBitmap>,
 
     /// CHECK: pool pubkey, validated by PDA seeds
     pub pool: UncheckedAccount<'info>,
 
     /// Only position_mgr (a specific PDA) can call this
+    #[account(mut)]
     pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]

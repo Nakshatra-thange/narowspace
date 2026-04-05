@@ -94,7 +94,8 @@ export function priceToTick(price: number): number {
  *   nearestUsableTick(-10)  → -64
  */
 export function nearestUsableTick(tick: number): number {
-  const rounded = Math.round(tick / TICK_SPACING) * TICK_SPACING;
+  const spacing = TICK_SPACING;
+  const rounded = Math.floor(tick / spacing) * spacing;
   if (rounded < MIN_TICK) return MIN_TICK + TICK_SPACING - (MIN_TICK % TICK_SPACING);
   if (rounded > MAX_TICK) return MAX_TICK - (MAX_TICK % TICK_SPACING);
   return rounded;

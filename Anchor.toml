@@ -23,4 +23,15 @@ wallet = "~/.config/solana/id.json"
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
 
+[test]
+startup_wait = 60000
+
+[test.validator]
+bind_address = "127.0.0.1"
+dynamic_port_range = "19004-19100"
+faucet_port = 19002
+gossip_port = 19003
+ledger = ".anchor/test-ledger"
+rpc_port = 18999
+
 [hooks]

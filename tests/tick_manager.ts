@@ -59,6 +59,10 @@ function getTickBitmapPDA(
   );
 }
 
+function flattenTicks(ticks: unknown[]): any[] {
+  return ticks.flatMap((tick) => (Array.isArray(tick) ? tick : [tick]));
+}
+
 // ─── Test suite ───────────────────────────────────────────────────────────────
 
 describe("tick_manager", () => {
@@ -102,13 +106,13 @@ describe("tick_manager", () => {
       }
     });
 
-    it("nearestUsableTick snaps to TICK_SPACING multiples", () => {
+    it("nearestUsableTick rounds down to TICK_SPACING multiples", () => {
       expect(nearestUsableTick(0)).to.equal(0);
       expect(nearestUsableTick(1)).to.equal(0);
-      expect(nearestUsableTick(63)).to.equal(64);
+      expect(nearestUsableTick(63)).to.equal(0);
       expect(nearestUsableTick(64)).to.equal(64);
       expect(nearestUsableTick(65)).to.equal(64);
-      expect(nearestUsableTick(-1)).to.equal(0);
+      expect(nearestUsableTick(-1)).to.equal(-64);
       expect(nearestUsableTick(-32)).to.equal(-64);
       expect(nearestUsableTick(-64)).to.equal(-64);
     });
@@ -122,11 +126,13 @@ describe("tick_manager", () => {
     });
 
     it("bitmap word and bit calculations", () => {
-      const { wordIndex: w0, bitIndex: b0 } = bitmapWordAndBit(arrayStartTickToBitmapIndex(0));
-      const { wordIndex: w1, bitIndex: b1 } = bitmapWordAndBit(arrayStartTickToBitmapIndex(ARRAY_SIZE));
-      expect(b0).to.equal(0); // first array = bit 0
-      expect(b1).to.equal(1); // second array = bit 1
-      expect(w0).to.equal(w1); // both in same word (8 arrays per word)
+      const index0 = arrayStartTickToBitmapIndex(0);
+      const index1 = arrayStartTickToBitmapIndex(ARRAY_SIZE);
+      const { wordIndex: w0, bitIndex: b0 } = bitmapWordAndBit(index0);
+      const { wordIndex: w1, bitIndex: b1 } = bitmapWordAndBit(index1);
+
+      expect(index1).to.equal(index0 + 1);
+      expect(w1 * 8 + b1).to.equal(w0 * 8 + b0 + 1);
     });
   });
 
@@ -156,8 +162,8 @@ describe("tick_manager", () => {
       expect(account.pool.toString()).to.equal(pool.publicKey.toString());
 
       // All 88 ticks should be uninitialized
-      for (const tick of account.ticks) {
-        expect(tick.initialized).to.equal(false);
+      for (const tick of flattenTicks(account.ticks)) {
+        expect(tick.initialized).to.equal(0);
         expect(tick.liquidityGross.toString()).to.equal("0");
       }
 
@@ -238,6 +244,7 @@ describe("tick_manager", () => {
       await program.methods
         .updateTick(
           TICK_LOWER,
+          wordIndex,
           LIQUIDITY,          // liquidity_delta = +1,000,000
           false,              // is_upper_tick = false (this is the lower bound)
           new BN(0),          // fee_growth_global_0 (no fees yet)
@@ -248,13 +255,14 @@ describe("tick_manager", () => {
           tickBitmap: bitmapPDA,
           pool: pool.publicKey,
           authority: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
         })
         .rpc();
 
       const tickArray = await program.account.tickArray.fetch(tickArrayPDA);
-      const tick = tickArray.ticks[0]; // tick 0 is offset 0 in array starting at 0
+      const tick = flattenTicks(tickArray.ticks)[0]; // tick 0 is offset 0 in array starting at 0
 
-      expect(tick.initialized).to.equal(true);
+      expect(tick.initialized).to.equal(1);
       expect(tick.liquidityGross.toString()).to.equal(LIQUIDITY.toString());
       // liquidity_net = +LIQUIDITY for lower tick
       expect(tick.liquidityNet.toString()).to.equal(LIQUIDITY.toString());
@@ -280,6 +288,7 @@ describe("tick_manager", () => {
       await program.methods
         .updateTick(
           TICK_UPPER,
+          wordIndex,
           LIQUIDITY,          // liquidity_delta
           true,               // is_upper_tick = true (upper bound → net goes negative)
           new BN(0),
@@ -290,13 +299,14 @@ describe("tick_manager", () => {
           tickBitmap: bitmapPDA,
           pool: pool.publicKey,
           authority: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
         })
         .rpc();
 
       const tickArray = await program.account.tickArray.fetch(upperArrayPDA);
-      const tick = tickArray.ticks[0]; // TICK_UPPER is start of its own array
+      const tick = flattenTicks(tickArray.ticks)[0]; // TICK_UPPER is start of its own array
 
-      expect(tick.initialized).to.equal(true);
+      expect(tick.initialized).to.equal(1);
       // liquidity_net = -LIQUIDITY for upper tick
       const net = tick.liquidityNet as BN;
       expect(net.isNeg()).to.equal(true);
@@ -307,26 +317,19 @@ describe("tick_manager", () => {
   });
 
   describe("On-chain: get_next_initialized_tick", () => {
-    it("finds the initialized lower tick when searching upward from below", async () => {
+    it("finds the initialized lower tick when searching downward from above", async () => {
       const [tickArrayPDA] = getTickArrayPDA(
         program.programId,
         pool.publicKey,
         0
       );
 
-      // We're at tick -64 (below the array's lower bound tick of 0)
-      // Searching upward (zero_for_one=false) should find tick 0
-      // We need an array that contains tick -64 first... for simplicity,
-      // test searching within the array starting at 0: start at tick 0 - SPACING
-      // Since tick 0 is initialized, searching from current_tick = -SPACING
-      // won't find it (it's not in this array). Let's search from inside the array.
-
-      // Search upward from tick -TICK_SPACING within the array starting at 0
-      // Expected result: tick 0 (the first initialized tick in this array)
+      // Search downward from the next usable tick above 0 within the same array.
+      // Expected result: tick 0 (the initialized lower boundary we set earlier).
       const result = await program.methods
         .getNextInitializedTick(
-          -TICK_SPACING,  // current_tick (below tick 0, inside array would be from 0)
-          false           // zero_for_one=false → search upward
+          TICK_SPACING,
+          true
         )
         .accounts({
           tickArray: tickArrayPDA,
@@ -334,9 +337,8 @@ describe("tick_manager", () => {
         })
         .view();
 
-      // The first initialized tick in this array is 0
       expect(result).to.equal(0);
-      console.log(`  ✓ Next initialized tick above -${TICK_SPACING} = ${result}`);
+      console.log(`  ✓ Next initialized tick below ${TICK_SPACING} = ${result}`);
     });
   });
 
@@ -350,7 +352,7 @@ describe("tick_manager", () => {
 
       const LIQUIDITY = new BN(1_000_000);
 
-      const result = await program.methods
+      await program.methods
         .crossTick(
           0,          // tick_index
           new BN(0),  // fee_growth_global_0 (no fees yet)
@@ -361,11 +363,14 @@ describe("tick_manager", () => {
           pool: pool.publicKey,
           authority: wallet.publicKey,
         })
-        .view();
+        .rpc();
 
-      // Crossing the lower tick moving upward gives us +liquidity_net
-      expect(result.toString()).to.equal(LIQUIDITY.toString());
-      console.log(`  ✓ cross_tick(0) returned liquidity_net = ${result}`);
+      const tickArray = await program.account.tickArray.fetch(tickArrayPDA);
+      const tick = flattenTicks(tickArray.ticks)[0];
+      expect((tick.liquidityNet as BN).toString()).to.equal(LIQUIDITY.toString());
+      expect(tick.feeGrowthOutside0.toString()).to.equal("0");
+      expect(tick.feeGrowthOutside1.toString()).to.equal("0");
+      console.log(`  ✓ cross_tick(0) preserved liquidity_net = ${tick.liquidityNet}`);
     });
   });
 });

@@ -33,7 +33,7 @@ pub mod tick_manager {
     ) -> Result<()> {
         let array_size = TICKS_PER_ARRAY as i32 * TICK_SPACING;
 
-        // start_tick must sit on an array boundary
+
         require!(
             start_tick_index % array_size == 0,
             TickManagerError::InvalidTickSpacing

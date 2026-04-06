@@ -32,6 +32,6 @@ dynamic_port_range = "19004-19100"
 faucet_port = 19002
 gossip_port = 19003
 ledger = ".anchor/test-ledger"
-rpc_port = 18999
+rpc_port = 8899
 
 [hooks]

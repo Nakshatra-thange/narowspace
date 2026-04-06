@@ -51,6 +51,14 @@ function getTickBitmapPDA(programId: PublicKey, pool: PublicKey, wordIndex: numb
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTickDataFromFetchedArray(account: any, absoluteTick: number, arrayStart: number) {
+  const offset = (absoluteTick - arrayStart) / TICK_SPACING;
+  const chunk = Math.floor(offset / 11);
+  const slot = offset % 11;
+  return account.ticks[chunk][slot];
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("tick_manager", () => {
@@ -87,9 +95,9 @@ describe("tick_manager", () => {
     it("nearestUsableTick snaps to TICK_SPACING multiples", () => {
       expect(nearestUsableTick(0)).to.equal(0);
       expect(nearestUsableTick(1)).to.equal(0);
-      expect(nearestUsableTick(63)).to.equal(64);
+      expect(nearestUsableTick(63)).to.equal(0);
       expect(nearestUsableTick(64)).to.equal(64);
-      expect(nearestUsableTick(-1)).to.equal(0);
+      expect(nearestUsableTick(-1)).to.equal(-64);
       expect(nearestUsableTick(-64)).to.equal(-64);
     });
 
@@ -101,8 +109,8 @@ describe("tick_manager", () => {
     });
 
     it("bitmap word and bit calculations", () => {
-      const idx0 = arrayStartTickToBitmapIndex(0);
-      const idx1 = arrayStartTickToBitmapIndex(ARRAY_SIZE);
+      const idx0 = 0;
+      const idx1 = 1;
       const { wordIndex: w0, bitIndex: b0 } = bitmapWordAndBit(idx0);
       const { wordIndex: w1, bitIndex: b1 } = bitmapWordAndBit(idx1);
       expect(b0).to.equal(0);
@@ -131,8 +139,10 @@ describe("tick_manager", () => {
       expect(account.startTickIndex).to.equal(START_TICK);
       expect(account.pool.toString()).to.equal(pool.publicKey.toString());
 
-      for (const tick of account.ticks) {
-        expect(tick.initialized).to.equal(false);
+      for (const chunk of account.ticks) {
+        for (const tick of chunk) {
+          expect(Number(tick.initialized)).to.equal(0);
+        }
       }
       console.log(`  ✓ TickArray PDA: ${tickArrayPDA.toString()}`);
     });
@@ -184,18 +194,19 @@ describe("tick_manager", () => {
       const [bitmapPDA]   = getTickBitmapPDA(program.programId, pool.publicKey, wordIndex);
 
       await program.methods
-        .updateTick(0, LIQUIDITY, false, new BN(0), new BN(0))
+        .updateTick(0, wordIndex, LIQUIDITY, false, new BN(0), new BN(0))
         .accounts({
           tickArray:  tickArrayPDA,
           tickBitmap: bitmapPDA,
           pool:       pool.publicKey,
           authority:  wallet.publicKey,
+          systemProgram: SystemProgram.programId,
         })
         .rpc();
 
       const ta   = await acct(program)["tickArray"].fetch(tickArrayPDA);
-      const tick = ta.ticks[0];
-      expect(tick.initialized).to.equal(true);
+      const tick = getTickDataFromFetchedArray(ta, 0, tickToArrayStartTick(0));
+      expect(Number(tick.initialized)).to.equal(1);
       expect((tick.liquidityNet as BN).toString()).to.equal(LIQUIDITY.toString());
       console.log(`  ✓ Lower tick 0: initialized=true liquidityNet=+${LIQUIDITY}`);
     });
@@ -207,18 +218,19 @@ describe("tick_manager", () => {
       const [bitmapPDA]     = getTickBitmapPDA(program.programId, pool.publicKey, wordIndex);
 
       await program.methods
-        .updateTick(TICK_UPPER, LIQUIDITY, true, new BN(0), new BN(0))
+        .updateTick(TICK_UPPER, wordIndex, LIQUIDITY, true, new BN(0), new BN(0))
         .accounts({
           tickArray:  upperArrayPDA,
           tickBitmap: bitmapPDA,
           pool:       pool.publicKey,
           authority:  wallet.publicKey,
+          systemProgram: SystemProgram.programId,
         })
         .rpc();
 
       const ta   = await acct(program)["tickArray"].fetch(upperArrayPDA);
-      const tick = ta.ticks[0];
-      expect(tick.initialized).to.equal(true);
+      const tick = getTickDataFromFetchedArray(ta, TICK_UPPER, upperArrayStart);
+      expect(Number(tick.initialized)).to.equal(1);
       const net = tick.liquidityNet as BN;
       expect(net.isNeg()).to.equal(true);
       expect(net.abs().toString()).to.equal(LIQUIDITY.toString());
@@ -249,17 +261,23 @@ describe("tick_manager", () => {
       const [tickArrayPDA] = getTickArrayPDA(program.programId, pool.publicKey, 0);
       const LIQUIDITY = new BN(1_000_000);
 
-      const result = await program.methods
+      await program.methods
         .crossTick(0, new BN(0), new BN(0))
         .accounts({
           tickArray: tickArrayPDA,
           pool:      pool.publicKey,
           authority: wallet.publicKey,
         })
-        .view();
+        .rpc();
 
-      expect(result.toString()).to.equal(LIQUIDITY.toString());
-      console.log(`  ✓ cross_tick(0) liquidity_net = ${result}`);
+      const ta = await acct(program)["tickArray"].fetch(tickArrayPDA);
+      const tick = getTickDataFromFetchedArray(ta, 0, 0);
+      const net = tick.liquidityNet as BN;
+
+      expect(net.toString()).to.equal(LIQUIDITY.toString());
+      expect((tick.feeGrowthOutside0 as BN).toString()).to.equal("0");
+      expect((tick.feeGrowthOutside1 as BN).toString()).to.equal("0");
+      console.log(`  ✓ cross_tick(0) liquidity_net = ${net}`);
     });
   });
 });

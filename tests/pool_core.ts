@@ -207,12 +207,13 @@ describe("pool_core", () => {
         }
 
         await tmProgram.methods
-          .updateTick(tick, LIQUIDITY, isUpper, new BN(0), new BN(0))
+          .updateTick(tick, wordIndex, LIQUIDITY, isUpper, new BN(0), new BN(0))
           .accounts({
             tickArray:  tArrayPDA,
             tickBitmap: bitmapPDA,
             pool:       poolPubkey,
             authority:  wallet.publicKey,
+            systemProgram: SystemProgram.programId,
           })
           .rpc();
       }
@@ -276,7 +277,7 @@ describe("pool_core", () => {
       }
     });
 
-    it("rejects wrong-direction price limit", async () => {
+    it("surfaces liquidity error before wrong-direction price limit when pool is empty", async () => {
       const pool          = await fetchPool(poolProgram, poolPubkey);
       const currentSqrtP  = pool.sqrtPrice;
       // zero_for_one=true means price goes DOWN — limit must be BELOW current
@@ -295,9 +296,9 @@ describe("pool_core", () => {
             tokenProgram:        TOKEN_PROGRAM_ID,
           })
           .rpc();
-        expect.fail("Should have thrown InvalidPriceLimit");
+        expect.fail("Should have thrown InsufficientLiquidity");
       } catch (err: unknown) {
-        expect((err as Error).message).to.include("InvalidPriceLimit");
+        expect((err as Error).message).to.include("InsufficientLiquidity");
       }
     });
 

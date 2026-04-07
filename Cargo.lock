@@ -1148,6 +1148,9 @@ name = "position_mgr"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "anchor-spl",
+ "pool_core",
+ "tick_manager",
 ]
 
 [[package]]

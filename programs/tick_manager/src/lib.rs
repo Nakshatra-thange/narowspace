@@ -6,7 +6,7 @@ pub mod state;
 use math::*;
 use state::*;
 
-declare_id!("6qTYRwXtuioRMmDy8rqTN8hXeQwWAQn1wSWpKVJV4q2P");
+declare_id!("GdjvKbL12gNDpthqsHwAZmySTZcBzaUj2PKWHVgyPykG");
 
 
 #[program]

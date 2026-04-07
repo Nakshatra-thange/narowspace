@@ -31,7 +31,7 @@ use state::*;
 // bring in tick_manager constants and math
 use tick_manager::math as tm_math;
 
-declare_id!("J54hECaJQGKa28SWZQQQNKbH7A5eWAZTnqd25o5uo8fb");
+declare_id!("HSKUQfjfpFKKyRgN1UrtS56Y1GxwCC9JjePsMoXmA2kq");
 
 const MAX_TICK_CROSSINGS: u32 = 10;
 

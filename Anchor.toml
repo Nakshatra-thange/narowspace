@@ -5,13 +5,10 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
-
-
 [programs.localnet]
-
-pool_core = "J54hECaJQGKa28SWZQQQNKbH7A5eWAZTnqd25o5uo8fb"
-position_mgr = "G7cJGgLf8dQA9yS5tJt19TFvDCM7vTphAtV2gyqhxeuN"
-tick_manager = "6qTYRwXtuioRMmDy8rqTN8hXeQwWAQn1wSWpKVJV4q2P"
+pool_core = "HSKUQfjfpFKKyRgN1UrtS56Y1GxwCC9JjePsMoXmA2kq"
+position_mgr = "C8QYKv68h1gSosFxrQpiZUzRnj2UTaHEYjoZ4rprekYn"
+tick_manager = "GdjvKbL12gNDpthqsHwAZmySTZcBzaUj2PKWHVgyPykG"
 
 [registry]
 url = "https://api.apr.dev"
@@ -23,8 +20,12 @@ wallet = "~/.config/solana/id.json"
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
 
+[hooks]
+
 [test]
 startup_wait = 60000
+shutdown_wait = 2000
+upgradeable = false
 
 [test.validator]
 bind_address = "127.0.0.1"
@@ -33,5 +34,3 @@ faucet_port = 19002
 gossip_port = 19003
 ledger = ".anchor/test-ledger"
 rpc_port = 8899
-
-[hooks]

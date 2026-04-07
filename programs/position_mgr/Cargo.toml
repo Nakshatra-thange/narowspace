@@ -20,9 +20,13 @@ custom-heap = []
 custom-panic = []
 
 
+
 [dependencies]
 anchor-lang = "0.32.1"
+anchor-spl = "0.32.1"
 
+tick_manager = { path = "../tick_manager" }
+pool_core = { path = "../pool_core" }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

@@ -94,12 +94,14 @@ export function priceToTick(price: number): number {
  *   nearestUsableTick(-10)  → -64
  */
 export function nearestUsableTick(tick: number): number {
-  const spacing = TICK_SPACING;
-  const rounded = Math.floor(tick / spacing) * spacing;
-  if (rounded < MIN_TICK) return MIN_TICK + TICK_SPACING - (MIN_TICK % TICK_SPACING);
-  if (rounded > MAX_TICK) return MAX_TICK - (MAX_TICK % TICK_SPACING);
-  return rounded;
-}
+ 
+    const spacing = TICK_SPACING;
+  
+    const rounded = Math.floor((tick + spacing / 2) / spacing) * spacing;
+  
+    return rounded === -0 ? 0 : rounded;
+  }
+
 
 // ─── Q64.64 fixed-point helpers ───────────────────────────────────────────────
 
@@ -186,7 +188,10 @@ export function tickToArrayStartTick(tick: number): number {
  */
 export function arrayStartTickToBitmapIndex(startTick: number): number {
   const arraySize = TICKS_PER_ARRAY * TICK_SPACING;
-  const minArrayStart = tickToArrayStartTick(MIN_TICK);
+
+  const minArrayStart =
+    Math.floor(MIN_TICK / arraySize) * arraySize;
+
   return Math.floor((startTick - minArrayStart) / arraySize);
 }
 

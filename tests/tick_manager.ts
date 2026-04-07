@@ -97,7 +97,7 @@ describe("tick_manager", () => {
       expect(nearestUsableTick(1)).to.equal(0);
       expect(nearestUsableTick(63)).to.equal(64);
       expect(nearestUsableTick(64)).to.equal(64);
-      expect(nearestUsableTick(-1)).to.equal(-64);
+      expect(nearestUsableTick(-1)).to.equal(0);
       expect(nearestUsableTick(-64)).to.equal(-64);
     });
 

@@ -94,13 +94,16 @@ export function priceToTick(price: number): number {
  *   nearestUsableTick(-10)  → -64
  */
 export function nearestUsableTick(tick: number): number {
- 
-    const spacing = TICK_SPACING;
-  
-    const rounded = Math.floor((tick + spacing / 2) / spacing) * spacing;
-  
-    return rounded === -0 ? 0 : rounded;
-  }
+  const spacing = TICK_SPACING;
+
+  const remainder = tick % spacing;
+  let result = tick - remainder;
+
+  if (remainder >= spacing / 2) result += spacing;
+  if (remainder <= -spacing / 2) result -= spacing;
+
+  return result === -0 ? 0 : result;
+}
 
 
 // ─── Q64.64 fixed-point helpers ───────────────────────────────────────────────

@@ -34,16 +34,14 @@
 //   fees when price exits and re-enters the range — acceptable for our purposes.
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{
-    self, Token, TokenAccount, Mint, MintTo, Burn, Transfer,
-};
 use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
 
-pub mod state;
 pub mod liquidity_math;
+pub mod state;
 
-use state::*;
 use liquidity_math::*;
+use state::*;
 
 // Access tick_manager math constants
 use tick_manager::math as tm_math;
@@ -97,8 +95,6 @@ pub mod position_mgr {
             tick_lower >= tm_math::MIN_TICK && tick_upper <= tm_math::MAX_TICK,
             PositionError::InvalidTickRange
         );
-        
-
 
         let pool = &ctx.accounts.pool;
         let sqrt_price_current = pool.sqrt_price;
@@ -125,8 +121,14 @@ pub mod position_mgr {
             liquidity,
         );
 
-        require!(amount_0 >= amount_0_minimum, PositionError::SlippageExceeded);
-        require!(amount_1 >= amount_1_minimum, PositionError::SlippageExceeded);
+        require!(
+            amount_0 >= amount_0_minimum,
+            PositionError::SlippageExceeded
+        );
+        require!(
+            amount_1 >= amount_1_minimum,
+            PositionError::SlippageExceeded
+        );
 
         // ── CPI: update lower tick in tick_manager ─────────────────────────────
         // Lower tick: liquidity_net = +L (entering range increases pool liquidity)
@@ -134,11 +136,10 @@ pub mod position_mgr {
             let cpi_ctx = CpiContext::new(
                 ctx.accounts.tick_manager_program.to_account_info(),
                 tick_manager::cpi::accounts::UpdateTick {
-                    
-                    tick_array:  ctx.accounts.tick_array_lower.to_account_info(),
+                    tick_array: ctx.accounts.tick_array_lower.to_account_info(),
                     tick_bitmap: ctx.accounts.tick_bitmap_lower.to_account_info(),
-                    pool:        ctx.accounts.pool.to_account_info(),
-                    authority:   ctx.accounts.owner.to_account_info(),
+                    pool: ctx.accounts.pool.to_account_info(),
+                    authority: ctx.accounts.owner.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                 },
             );
@@ -159,10 +160,10 @@ pub mod position_mgr {
             let cpi_ctx = CpiContext::new(
                 ctx.accounts.tick_manager_program.to_account_info(),
                 tick_manager::cpi::accounts::UpdateTick {
-                    tick_array:  ctx.accounts.tick_array_upper.to_account_info(),
+                    tick_array: ctx.accounts.tick_array_upper.to_account_info(),
                     tick_bitmap: ctx.accounts.tick_bitmap_upper.to_account_info(),
-                    pool:        ctx.accounts.pool.to_account_info(),
-                    authority:   ctx.accounts.owner.to_account_info(),
+                    pool: ctx.accounts.pool.to_account_info(),
+                    authority: ctx.accounts.owner.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                 },
             );
@@ -183,8 +184,8 @@ pub mod position_mgr {
                 CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from:      ctx.accounts.user_token_account_0.to_account_info(),
-                        to:        ctx.accounts.token_vault_0.to_account_info(),
+                        from: ctx.accounts.user_token_account_0.to_account_info(),
+                        to: ctx.accounts.token_vault_0.to_account_info(),
                         authority: ctx.accounts.owner.to_account_info(),
                     },
                 ),
@@ -197,8 +198,8 @@ pub mod position_mgr {
                 CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from:      ctx.accounts.user_token_account_1.to_account_info(),
-                        to:        ctx.accounts.token_vault_1.to_account_info(),
+                        from: ctx.accounts.user_token_account_1.to_account_info(),
+                        to: ctx.accounts.token_vault_1.to_account_info(),
                         authority: ctx.accounts.owner.to_account_info(),
                     },
                 ),
@@ -209,8 +210,8 @@ pub mod position_mgr {
         // ── Update pool liquidity if current price is inside this range ─────────
         {
             let pool_mut = &mut ctx.accounts.pool;
-            let in_range = pool_mut.tick_current >= tick_lower
-                && pool_mut.tick_current < tick_upper;
+            let in_range =
+                pool_mut.tick_current >= tick_lower && pool_mut.tick_current < tick_upper;
             if in_range {
                 pool_mut.liquidity = pool_mut.liquidity.saturating_add(liquidity);
             }
@@ -218,7 +219,7 @@ pub mod position_mgr {
 
         // ── Mint NFT receipt (1 token, 0 decimals) ──────────────────────────────
         {
-            let mint_key = ctx.accounts.nft_mint.key(); 
+            let mint_key = ctx.accounts.nft_mint.key();
             let position_seeds = &[
                 b"position".as_ref(),
                 mint_key.as_ref(),
@@ -230,8 +231,8 @@ pub mod position_mgr {
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     MintTo {
-                        mint:      ctx.accounts.nft_mint.to_account_info(),
-                        to:        ctx.accounts.nft_token_account.to_account_info(),
+                        mint: ctx.accounts.nft_mint.to_account_info(),
+                        to: ctx.accounts.nft_token_account.to_account_info(),
                         authority: ctx.accounts.position.to_account_info(),
                     },
                     signer,
@@ -244,24 +245,24 @@ pub mod position_mgr {
         {
             let pool = &ctx.accounts.pool;
             let position = &mut ctx.accounts.position;
-            position.pool                    = ctx.accounts.pool.key();
-            position.owner                   = ctx.accounts.owner.key();
-            position.nft_mint                = ctx.accounts.nft_mint.key();
-            position.tick_lower              = tick_lower;
-            position.tick_upper              = tick_upper;
-            position.liquidity               = liquidity;
+            position.pool = ctx.accounts.pool.key();
+            position.owner = ctx.accounts.owner.key();
+            position.nft_mint = ctx.accounts.nft_mint.key();
+            position.tick_lower = tick_lower;
+            position.tick_upper = tick_upper;
+            position.liquidity = liquidity;
             position.fee_growth_checkpoint_0 = pool.fee_growth_global_0;
             position.fee_growth_checkpoint_1 = pool.fee_growth_global_1;
-            position.tokens_owed_0           = 0;
-            position.tokens_owed_1           = 0;
-            position.bump                    = ctx.bumps.position;
+            position.tokens_owed_0 = 0;
+            position.tokens_owed_1 = 0;
+            position.bump = ctx.bumps.position;
         }
 
         emit!(PositionOpenedEvent {
-            position:   ctx.accounts.position.key(),
-            pool:       ctx.accounts.pool.key(),
-            owner:      ctx.accounts.owner.key(),
-            nft_mint:   ctx.accounts.nft_mint.key(),
+            position: ctx.accounts.position.key(),
+            pool: ctx.accounts.pool.key(),
+            owner: ctx.accounts.owner.key(),
+            nft_mint: ctx.accounts.nft_mint.key(),
             tick_lower,
             tick_upper,
             liquidity,
@@ -271,7 +272,11 @@ pub mod position_mgr {
 
         msg!(
             "Position opened: L={} tick_range=[{},{}] deposited=({},{})",
-            liquidity, tick_lower, tick_upper, amount_0, amount_1
+            liquidity,
+            tick_lower,
+            tick_upper,
+            amount_0,
+            amount_1
         );
 
         Ok(())
@@ -293,11 +298,11 @@ pub mod position_mgr {
         amount_1_minimum: u64,
     ) -> Result<()> {
         let position = &ctx.accounts.position;
-        let pool     = &ctx.accounts.pool;
+        let pool = &ctx.accounts.pool;
 
-        let tick_lower  = position.tick_lower;
-        let tick_upper  = position.tick_upper;
-        let liquidity   = position.liquidity;
+        let tick_lower = position.tick_lower;
+        let tick_upper = position.tick_upper;
+        let liquidity = position.liquidity;
 
         let sqrt_price_current = pool.sqrt_price;
         let sqrt_price_lower = tm_math::tick_to_sqrt_price_q64(tick_lower)
@@ -316,13 +321,15 @@ pub mod position_mgr {
         // ── Compute fees owed ──────────────────────────────────────────────────
         // Simplified: use global fee growth as fee_growth_inside
         // (accurate when price hasn't left the range since deposit)
-        let (fee_0, fee_1) = position.compute_fees_owed(
-            pool.fee_growth_global_0,
-            pool.fee_growth_global_1,
-        );
+        let (fee_0, fee_1) =
+            position.compute_fees_owed(pool.fee_growth_global_0, pool.fee_growth_global_1);
 
-        let total_0 = amount_0.saturating_add(fee_0).saturating_add(position.tokens_owed_0);
-        let total_1 = amount_1.saturating_add(fee_1).saturating_add(position.tokens_owed_1);
+        let total_0 = amount_0
+            .saturating_add(fee_0)
+            .saturating_add(position.tokens_owed_0);
+        let total_1 = amount_1
+            .saturating_add(fee_1)
+            .saturating_add(position.tokens_owed_1);
 
         require!(total_0 >= amount_0_minimum, PositionError::SlippageExceeded);
         require!(total_1 >= amount_1_minimum, PositionError::SlippageExceeded);
@@ -333,10 +340,10 @@ pub mod position_mgr {
             let cpi_ctx = CpiContext::new(
                 ctx.accounts.tick_manager_program.to_account_info(),
                 tick_manager::cpi::accounts::UpdateTick {
-                    tick_array:  ctx.accounts.tick_array_lower.to_account_info(),
+                    tick_array: ctx.accounts.tick_array_lower.to_account_info(),
                     tick_bitmap: ctx.accounts.tick_bitmap_lower.to_account_info(),
-                    pool:        ctx.accounts.pool.to_account_info(),
-                    authority:   ctx.accounts.owner.to_account_info(),
+                    pool: ctx.accounts.pool.to_account_info(),
+                    authority: ctx.accounts.owner.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                 },
             );
@@ -357,10 +364,10 @@ pub mod position_mgr {
             let cpi_ctx = CpiContext::new(
                 ctx.accounts.tick_manager_program.to_account_info(),
                 tick_manager::cpi::accounts::UpdateTick {
-                    tick_array:  ctx.accounts.tick_array_upper.to_account_info(),
+                    tick_array: ctx.accounts.tick_array_upper.to_account_info(),
                     tick_bitmap: ctx.accounts.tick_bitmap_upper.to_account_info(),
-                    pool:        ctx.accounts.pool.to_account_info(),
-                    authority:   ctx.accounts.owner.to_account_info(),
+                    pool: ctx.accounts.pool.to_account_info(),
+                    authority: ctx.accounts.owner.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                 },
             );
@@ -378,8 +385,8 @@ pub mod position_mgr {
         // ── Update pool liquidity if in range ──────────────────────────────────
         {
             let pool_mut = &mut ctx.accounts.pool;
-            let in_range = pool_mut.tick_current >= tick_lower
-                && pool_mut.tick_current < tick_upper;
+            let in_range =
+                pool_mut.tick_current >= tick_lower && pool_mut.tick_current < tick_upper;
             if in_range {
                 pool_mut.liquidity = pool_mut.liquidity.saturating_sub(liquidity);
             }
@@ -387,12 +394,12 @@ pub mod position_mgr {
 
         // ── Transfer tokens back to user ───────────────────────────────────────
         // Pool vaults are owned by pool PDA — we sign with pool seeds
-        let pool_account  = &ctx.accounts.pool;
-        let mint_0_key    = pool_account.token_mint_0;
-        let mint_1_key    = pool_account.token_mint_1;
+        let pool_account = &ctx.accounts.pool;
+        let mint_0_key = pool_account.token_mint_0;
+        let mint_1_key = pool_account.token_mint_1;
         let fee_rate_bytes = pool_account.fee_rate.to_le_bytes();
-        let pool_bump     = pool_account.bump;
-        let pool_seeds    = &[
+        let pool_bump = pool_account.bump;
+        let pool_seeds = &[
             b"pool".as_ref(),
             mint_0_key.as_ref(),
             mint_1_key.as_ref(),
@@ -406,8 +413,8 @@ pub mod position_mgr {
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from:      ctx.accounts.token_vault_0.to_account_info(),
-                        to:        ctx.accounts.user_token_account_0.to_account_info(),
+                        from: ctx.accounts.token_vault_0.to_account_info(),
+                        to: ctx.accounts.user_token_account_0.to_account_info(),
                         authority: ctx.accounts.pool.to_account_info(),
                     },
                     signer_seeds,
@@ -421,8 +428,8 @@ pub mod position_mgr {
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from:      ctx.accounts.token_vault_1.to_account_info(),
-                        to:        ctx.accounts.user_token_account_1.to_account_info(),
+                        from: ctx.accounts.token_vault_1.to_account_info(),
+                        to: ctx.accounts.user_token_account_1.to_account_info(),
                         authority: ctx.accounts.pool.to_account_info(),
                     },
                     signer_seeds,
@@ -432,24 +439,18 @@ pub mod position_mgr {
         }
 
         // ── Burn NFT ────────────────────────────────────────────────────────────
-        
 
         {
-
             let mint_key = ctx.accounts.nft_mint.key();
-            let position_seeds = &[
-                b"position".as_ref(),
-                mint_key.as_ref(),
-                &[position.bump],
-            ];
+            let position_seeds = &[b"position".as_ref(), mint_key.as_ref(), &[position.bump]];
             let signer = &[&position_seeds[..]];
 
             token::burn(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     Burn {
-                        mint:      ctx.accounts.nft_mint.to_account_info(),
-                        from:      ctx.accounts.nft_token_account.to_account_info(),
+                        mint: ctx.accounts.nft_mint.to_account_info(),
+                        from: ctx.accounts.nft_token_account.to_account_info(),
                         authority: ctx.accounts.position.to_account_info(),
                     },
                     signer,
@@ -459,19 +460,22 @@ pub mod position_mgr {
         }
 
         emit!(PositionClosedEvent {
-            position:  ctx.accounts.position.key(),
-            pool:      ctx.accounts.pool.key(),
-            owner:     ctx.accounts.owner.key(),
+            position: ctx.accounts.position.key(),
+            pool: ctx.accounts.pool.key(),
+            owner: ctx.accounts.owner.key(),
             liquidity,
             amount_0,
             amount_1,
-            fees_0:    fee_0,
-            fees_1:    fee_1,
+            fees_0: fee_0,
+            fees_1: fee_1,
         });
 
         msg!(
             "Position closed: returned=({},{}) fees=({},{})",
-            amount_0, amount_1, fee_0, fee_1
+            amount_0,
+            amount_1,
+            fee_0,
+            fee_1
         );
 
         Ok(())
@@ -484,14 +488,12 @@ pub mod position_mgr {
     // The position stays open. tokens_owed_0/1 is zeroed after collection.
     // ─────────────────────────────────────────────────────────────────────────
     pub fn collect_fees(ctx: Context<CollectFees>) -> Result<()> {
-        let pool     = &ctx.accounts.pool;
+        let pool = &ctx.accounts.pool;
         let position = &mut ctx.accounts.position;
 
         // Compute fees since last checkpoint
-        let (fee_0, fee_1) = position.compute_fees_owed(
-            pool.fee_growth_global_0,
-            pool.fee_growth_global_1,
-        );
+        let (fee_0, fee_1) =
+            position.compute_fees_owed(pool.fee_growth_global_0, pool.fee_growth_global_1);
 
         let total_0 = fee_0.saturating_add(position.tokens_owed_0);
         let total_1 = fee_1.saturating_add(position.tokens_owed_1);
@@ -503,11 +505,11 @@ pub mod position_mgr {
         position.tokens_owed_1 = 0;
 
         // Transfer fees from pool vaults to user
-        let mint_0_key    = pool.token_mint_0;
-        let mint_1_key    = pool.token_mint_1;
+        let mint_0_key = pool.token_mint_0;
+        let mint_1_key = pool.token_mint_1;
         let fee_rate_bytes = pool.fee_rate.to_le_bytes();
-        let pool_bump     = pool.bump;
-        let pool_seeds    = &[
+        let pool_bump = pool.bump;
+        let pool_seeds = &[
             b"pool".as_ref(),
             mint_0_key.as_ref(),
             mint_1_key.as_ref(),
@@ -521,8 +523,8 @@ pub mod position_mgr {
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from:      ctx.accounts.token_vault_0.to_account_info(),
-                        to:        ctx.accounts.user_token_account_0.to_account_info(),
+                        from: ctx.accounts.token_vault_0.to_account_info(),
+                        to: ctx.accounts.user_token_account_0.to_account_info(),
                         authority: ctx.accounts.pool.to_account_info(),
                     },
                     signer_seeds,
@@ -536,8 +538,8 @@ pub mod position_mgr {
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from:      ctx.accounts.token_vault_1.to_account_info(),
-                        to:        ctx.accounts.user_token_account_1.to_account_info(),
+                        from: ctx.accounts.token_vault_1.to_account_info(),
+                        to: ctx.accounts.user_token_account_1.to_account_info(),
                         authority: ctx.accounts.pool.to_account_info(),
                     },
                     signer_seeds,
@@ -548,9 +550,9 @@ pub mod position_mgr {
 
         emit!(FeesCollectedEvent {
             position: ctx.accounts.position.key(),
-            owner:    ctx.accounts.owner.key(),
-            fees_0:   total_0,
-            fees_1:   total_1,
+            owner: ctx.accounts.owner.key(),
+            fees_0: total_0,
+            fees_1: total_1,
         });
 
         msg!("Fees collected: ({},{})", total_0, total_1);
@@ -578,7 +580,7 @@ pub struct OpenPosition<'info> {
         seeds = [b"position", nft_mint.key().as_ref()],
         bump
     )]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
 
     // Pool — mutable because we update pool.liquidity
     #[account(
@@ -591,7 +593,7 @@ pub struct OpenPosition<'info> {
         ],
         bump = pool.bump
     )]
-    pub pool: Account<'info, pool_core::state::Pool>,
+    pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     // Pool's token vaults (destinations for deposited tokens)
     #[account(
@@ -600,7 +602,7 @@ pub struct OpenPosition<'info> {
         bump,
         seeds::program = pool_core_program.key()
     )]
-    pub token_vault_0: Account<'info, TokenAccount>,
+    pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -608,7 +610,7 @@ pub struct OpenPosition<'info> {
         bump,
         seeds::program = pool_core_program.key()
     )]
-    pub token_vault_1: Account<'info, TokenAccount>,
+    pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
     // NFT mint — created fresh for this position (0 decimals, supply will be 1)
     #[account(
@@ -617,7 +619,7 @@ pub struct OpenPosition<'info> {
         mint::decimals = 0,
         mint::authority = position,  // position PDA is the mint authority
     )]
-    pub nft_mint: Account<'info, Mint>,
+    pub nft_mint: Box<Account<'info, Mint>>,
 
     // Owner's NFT token account — will receive the minted NFT
     #[account(
@@ -626,7 +628,7 @@ pub struct OpenPosition<'info> {
         associated_token::mint = nft_mint,
         associated_token::authority = owner,
     )]
-    pub nft_token_account: Account<'info, TokenAccount>,
+    pub nft_token_account: Box<Account<'info, TokenAccount>>,
 
     // Owner's token accounts (source of deposited tokens)
     #[account(
@@ -634,45 +636,42 @@ pub struct OpenPosition<'info> {
         constraint = user_token_account_0.mint  == pool.token_mint_0 @ PositionError::InvalidTokenAccount,
         constraint = user_token_account_0.owner == owner.key()       @ PositionError::InvalidTokenAccount,
     )]
-    pub user_token_account_0: Account<'info, TokenAccount>,
+    pub user_token_account_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = user_token_account_1.mint  == pool.token_mint_1 @ PositionError::InvalidTokenAccount,
         constraint = user_token_account_1.owner == owner.key()       @ PositionError::InvalidTokenAccount,
     )]
-    pub user_token_account_1: Account<'info, TokenAccount>,
+    pub user_token_account_1: Box<Account<'info, TokenAccount>>,
 
-    // Tick arrays for lower and upper boundaries
-    /// CHECK: validated by tick_manager via PDA seeds
+    /// CHECK: Validated by the tick_manager CPI via PDA seeds for the lower tick array.
     #[account(mut)]
     pub tick_array_lower: UncheckedAccount<'info>,
 
-    /// CHECK: validated by tick_manager via PDA seeds
+    /// CHECK: Validated by the tick_manager CPI via PDA seeds for the upper tick array.
     #[account(mut)]
     pub tick_array_upper: UncheckedAccount<'info>,
 
-    /// CHECK: bitmap for lower tick
+    /// CHECK: Validated by the tick_manager CPI as the bitmap account for the lower tick.
     #[account(mut)]
     pub tick_bitmap_lower: UncheckedAccount<'info>,
 
-    /// CHECK: bitmap for upper tick
+    /// CHECK: Validated by the tick_manager CPI as the bitmap account for the upper tick.
     #[account(mut)]
     pub tick_bitmap_upper: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: tick_manager program
-    pub tick_manager_program: UncheckedAccount<'info>,
+    pub tick_manager_program: Program<'info, tick_manager::program::TickManager>,
 
-    /// CHECK: pool_core program (for vault PDA seeds validation)
-    pub pool_core_program: UncheckedAccount<'info>,
+    pub pool_core_program: Program<'info, pool_core::program::PoolCore>,
 
-    pub token_program:          Program<'info, Token>,
+    pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program:         Program<'info, System>,
-    pub rent:                   Sysvar<'info, Rent>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
@@ -684,7 +683,7 @@ pub struct ClosePosition<'info> {
         constraint = position.owner == owner.key() @ PositionError::Unauthorized,
         close = owner,  // rent goes back to owner when account closed
     )]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
 
     #[account(
         mut,
@@ -696,7 +695,7 @@ pub struct ClosePosition<'info> {
         ],
         bump = pool.bump
     )]
-    pub pool: Account<'info, pool_core::state::Pool>,
+    pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     #[account(
         mut,
@@ -704,7 +703,7 @@ pub struct ClosePosition<'info> {
         bump,
         seeds::program = pool_core_program.key()
     )]
-    pub token_vault_0: Account<'info, TokenAccount>,
+    pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -712,14 +711,14 @@ pub struct ClosePosition<'info> {
         bump,
         seeds::program = pool_core_program.key()
     )]
-    pub token_vault_1: Account<'info, TokenAccount>,
+    pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
     // NFT mint — will have supply reduced to 0 after burn
     #[account(
         mut,
         constraint = nft_mint.key() == position.nft_mint @ PositionError::InvalidNft,
     )]
-    pub nft_mint: Account<'info, Mint>,
+    pub nft_mint: Box<Account<'info, Mint>>,
 
     // Owner's NFT account — NFT burned from here
     #[account(
@@ -728,37 +727,42 @@ pub struct ClosePosition<'info> {
         constraint = nft_token_account.owner  == owner.key()     @ PositionError::InvalidNft,
         constraint = nft_token_account.amount == 1               @ PositionError::InvalidNft,
     )]
-    pub nft_token_account: Account<'info, TokenAccount>,
+    pub nft_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = user_token_account_0.mint  == pool.token_mint_0 @ PositionError::InvalidTokenAccount,
         constraint = user_token_account_0.owner == owner.key()       @ PositionError::InvalidTokenAccount,
     )]
-    pub user_token_account_0: Account<'info, TokenAccount>,
+    pub user_token_account_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = user_token_account_1.mint  == pool.token_mint_1 @ PositionError::InvalidTokenAccount,
         constraint = user_token_account_1.owner == owner.key()       @ PositionError::InvalidTokenAccount,
     )]
-    pub user_token_account_1: Account<'info, TokenAccount>,
+    pub user_token_account_1: Box<Account<'info, TokenAccount>>,
 
-    /// CHECK: tick arrays validated by tick_manager
-    #[account(mut)] pub tick_array_lower:  UncheckedAccount<'info>,
-    #[account(mut)] pub tick_array_upper:  UncheckedAccount<'info>,
-    #[account(mut)] pub tick_bitmap_lower: UncheckedAccount<'info>,
-    #[account(mut)] pub tick_bitmap_upper: UncheckedAccount<'info>,
+    /// CHECK: Validated by the tick_manager CPI via PDA seeds for the lower tick array.
+    #[account(mut)]
+    pub tick_array_lower: UncheckedAccount<'info>,
+    /// CHECK: Validated by the tick_manager CPI via PDA seeds for the upper tick array.
+    #[account(mut)]
+    pub tick_array_upper: UncheckedAccount<'info>,
+    /// CHECK: Validated by the tick_manager CPI as the bitmap account for the lower tick.
+    #[account(mut)]
+    pub tick_bitmap_lower: UncheckedAccount<'info>,
+    /// CHECK: Validated by the tick_manager CPI as the bitmap account for the upper tick.
+    #[account(mut)]
+    pub tick_bitmap_upper: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: tick_manager program
-    pub tick_manager_program: UncheckedAccount<'info>,
-    /// CHECK: pool_core program
-    pub pool_core_program: UncheckedAccount<'info>,
+    pub tick_manager_program: Program<'info, tick_manager::program::TickManager>,
+    pub pool_core_program: Program<'info, pool_core::program::PoolCore>,
 
-    pub token_program:  Program<'info, Token>,
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
@@ -770,7 +774,7 @@ pub struct CollectFees<'info> {
         bump  = position.bump,
         constraint = position.owner == owner.key() @ PositionError::Unauthorized,
     )]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
 
     #[account(
         seeds = [
@@ -781,7 +785,7 @@ pub struct CollectFees<'info> {
         ],
         bump = pool.bump
     )]
-    pub pool: Account<'info, pool_core::state::Pool>,
+    pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     #[account(
         mut,
@@ -789,7 +793,7 @@ pub struct CollectFees<'info> {
         bump,
         seeds::program = pool_core_program.key()
     )]
-    pub token_vault_0: Account<'info, TokenAccount>,
+    pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -797,27 +801,26 @@ pub struct CollectFees<'info> {
         bump,
         seeds::program = pool_core_program.key()
     )]
-    pub token_vault_1: Account<'info, TokenAccount>,
+    pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = user_token_account_0.mint  == pool.token_mint_0 @ PositionError::InvalidTokenAccount,
         constraint = user_token_account_0.owner == owner.key()       @ PositionError::InvalidTokenAccount,
     )]
-    pub user_token_account_0: Account<'info, TokenAccount>,
+    pub user_token_account_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = user_token_account_1.mint  == pool.token_mint_1 @ PositionError::InvalidTokenAccount,
         constraint = user_token_account_1.owner == owner.key()       @ PositionError::InvalidTokenAccount,
     )]
-    pub user_token_account_1: Account<'info, TokenAccount>,
+    pub user_token_account_1: Box<Account<'info, TokenAccount>>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: pool_core program
-    pub pool_core_program: UncheckedAccount<'info>,
+    pub pool_core_program: Program<'info, pool_core::program::PoolCore>,
 
     pub token_program: Program<'info, Token>,
 }

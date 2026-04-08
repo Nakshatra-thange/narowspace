@@ -61,18 +61,18 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(Default)]
 pub struct Position {
-    pub pool:                      Pubkey,
-    pub owner:                     Pubkey,
-    pub nft_mint:                  Pubkey,
-    pub tick_lower:                i32,
-    pub tick_upper:                i32,
-    pub liquidity:                 u128,
-    pub fee_growth_checkpoint_0:   u128,
-    pub fee_growth_checkpoint_1:   u128,
-    pub tokens_owed_0:             u64,
-    pub tokens_owed_1:             u64,
-    pub bump:                      u8,
-    pub _padding:                  [u8; 7],
+    pub pool: Pubkey,
+    pub owner: Pubkey,
+    pub nft_mint: Pubkey,
+    pub tick_lower: i32,
+    pub tick_upper: i32,
+    pub liquidity: u128,
+    pub fee_growth_checkpoint_0: u128,
+    pub fee_growth_checkpoint_1: u128,
+    pub tokens_owed_0: u64,
+    pub tokens_owed_1: u64,
+    pub bump: u8,
+    pub _padding: [u8; 7],
 }
 
 impl Position {
@@ -123,33 +123,33 @@ impl Position {
 
 #[event]
 pub struct PositionOpenedEvent {
-    pub position:   Pubkey,
-    pub pool:       Pubkey,
-    pub owner:      Pubkey,
-    pub nft_mint:   Pubkey,
+    pub position: Pubkey,
+    pub pool: Pubkey,
+    pub owner: Pubkey,
+    pub nft_mint: Pubkey,
     pub tick_lower: i32,
     pub tick_upper: i32,
-    pub liquidity:  u128,
-    pub amount_0:   u64,
-    pub amount_1:   u64,
+    pub liquidity: u128,
+    pub amount_0: u64,
+    pub amount_1: u64,
 }
 
 #[event]
 pub struct PositionClosedEvent {
-    pub position:    Pubkey,
-    pub pool:        Pubkey,
-    pub owner:       Pubkey,
-    pub liquidity:   u128,
-    pub amount_0:    u64,
-    pub amount_1:    u64,
-    pub fees_0:      u64,
-    pub fees_1:      u64,
+    pub position: Pubkey,
+    pub pool: Pubkey,
+    pub owner: Pubkey,
+    pub liquidity: u128,
+    pub amount_0: u64,
+    pub amount_1: u64,
+    pub fees_0: u64,
+    pub fees_1: u64,
 }
 
 #[event]
 pub struct FeesCollectedEvent {
     pub position: Pubkey,
-    pub owner:    Pubkey,
-    pub fees_0:   u64,
-    pub fees_1:   u64,
+    pub owner: Pubkey,
+    pub fees_0: u64,
+    pub fees_1: u64,
 }

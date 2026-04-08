@@ -35,10 +35,10 @@
 /// amount_1: token1 amount in raw units (e.g. micro-USDC)
 pub fn get_liquidity_for_amounts(
     sqrt_price_current: u128,
-    sqrt_price_lower:   u128,
-    sqrt_price_upper:   u128,
-    amount_0:           u64,
-    amount_1:           u64,
+    sqrt_price_lower: u128,
+    sqrt_price_upper: u128,
+    amount_0: u64,
+    amount_1: u64,
 ) -> u128 {
     if sqrt_price_lower >= sqrt_price_upper {
         return 0;
@@ -60,11 +60,7 @@ pub fn get_liquidity_for_amounts(
 
 /// L from token0: L = amount0 * sqrt_a * sqrt_b / (sqrt_b - sqrt_a)
 /// (amount0 is the SOL-like token; quantity decreases as price rises)
-fn get_liquidity_for_amount_0(
-    sqrt_price_a: u128,
-    sqrt_price_b: u128,
-    amount_0:     u128,
-) -> u128 {
+fn get_liquidity_for_amount_0(sqrt_price_a: u128, sqrt_price_b: u128, amount_0: u128) -> u128 {
     let (lower, upper) = if sqrt_price_a <= sqrt_price_b {
         (sqrt_price_a, sqrt_price_b)
     } else {
@@ -72,7 +68,9 @@ fn get_liquidity_for_amount_0(
     };
 
     let diff = upper.saturating_sub(lower);
-    if diff == 0 { return 0; }
+    if diff == 0 {
+        return 0;
+    }
 
     // L = amount * lower * upper / (upper - lower)
     // All in Q64. To avoid overflow: (amount * lower / diff) * upper / 2^64
@@ -90,11 +88,7 @@ fn get_liquidity_for_amount_0(
 
 /// L from token1: L = amount1 / (sqrt_b - sqrt_a) * 2^64
 /// (amount1 is the USDC-like token; quantity increases as price rises)
-fn get_liquidity_for_amount_1(
-    sqrt_price_a: u128,
-    sqrt_price_b: u128,
-    amount_1:     u128,
-) -> u128 {
+fn get_liquidity_for_amount_1(sqrt_price_a: u128, sqrt_price_b: u128, amount_1: u128) -> u128 {
     let (lower, upper) = if sqrt_price_a <= sqrt_price_b {
         (sqrt_price_a, sqrt_price_b)
     } else {
@@ -102,7 +96,9 @@ fn get_liquidity_for_amount_1(
     };
 
     let diff = upper.saturating_sub(lower);
-    if diff == 0 { return 0; }
+    if diff == 0 {
+        return 0;
+    }
 
     // L = amount1 * 2^64 / diff  (diff is Q64, so this gives raw L)
     amount_1
@@ -120,9 +116,9 @@ fn get_liquidity_for_amount_1(
 /// Returns (amount_0, amount_1) in raw token units.
 pub fn get_amounts_for_liquidity(
     sqrt_price_current: u128,
-    sqrt_price_lower:   u128,
-    sqrt_price_upper:   u128,
-    liquidity:          u128,
+    sqrt_price_lower: u128,
+    sqrt_price_upper: u128,
+    liquidity: u128,
 ) -> (u64, u64) {
     if sqrt_price_lower >= sqrt_price_upper || liquidity == 0 {
         return (0, 0);
@@ -154,18 +150,16 @@ pub fn get_amounts_for_liquidity(
 
 /// amount0 = L * (sqrt_b - sqrt_a) / (sqrt_a * sqrt_b)
 /// token0 amount between two sqrt prices for given liquidity
-fn get_amount_0_for_liquidity(
-    sqrt_price_a: u128,
-    sqrt_price_b: u128,
-    liquidity:    u128,
-) -> u128 {
+fn get_amount_0_for_liquidity(sqrt_price_a: u128, sqrt_price_b: u128, liquidity: u128) -> u128 {
     let (lower, upper) = if sqrt_price_a <= sqrt_price_b {
         (sqrt_price_a, sqrt_price_b)
     } else {
         (sqrt_price_b, sqrt_price_a)
     };
 
-    if lower == 0 { return 0; }
+    if lower == 0 {
+        return 0;
+    }
 
     let diff = upper.saturating_sub(lower);
 
@@ -176,18 +170,16 @@ fn get_amount_0_for_liquidity(
 
     // lower * upper >> 64 (both are Q64, product is Q128, shift back to Q64)
     let denom_hi = (lower >> 32).saturating_mul(upper >> 32);
-    if denom_hi == 0 { return 0; }
+    if denom_hi == 0 {
+        return 0;
+    }
 
     numerator.checked_div(denom_hi).unwrap_or(0)
 }
 
 /// amount1 = L * (sqrt_b - sqrt_a) / 2^64
 /// token1 amount between two sqrt prices for given liquidity
-fn get_amount_1_for_liquidity(
-    sqrt_price_a: u128,
-    sqrt_price_b: u128,
-    liquidity:    u128,
-) -> u128 {
+fn get_amount_1_for_liquidity(sqrt_price_a: u128, sqrt_price_b: u128, liquidity: u128) -> u128 {
     let (lower, upper) = if sqrt_price_a <= sqrt_price_b {
         (sqrt_price_a, sqrt_price_b)
     } else {
@@ -218,75 +210,95 @@ mod tests {
     fn test_liquidity_round_trip_inside_range() {
         // LP deposits at price $150, range $140-$160
         let sqrt_current = sqrt_q64(150.0);
-        let sqrt_lower   = sqrt_q64(140.0);
-        let sqrt_upper   = sqrt_q64(160.0);
+        let sqrt_lower = sqrt_q64(140.0);
+        let sqrt_upper = sqrt_q64(160.0);
 
         let amount_0 = 1_000_000u64; // 1 token0
         let amount_1 = 150_000_000u64; // 150 token1
 
-        let liquidity = get_liquidity_for_amounts(
-            sqrt_current, sqrt_lower, sqrt_upper, amount_0, amount_1,
-        );
+        let liquidity =
+            get_liquidity_for_amounts(sqrt_current, sqrt_lower, sqrt_upper, amount_0, amount_1);
 
         assert!(liquidity > 0, "liquidity should be positive");
 
         // Round-trip: get amounts back
-        let (back_0, back_1) = get_amounts_for_liquidity(
-            sqrt_current, sqrt_lower, sqrt_upper, liquidity,
-        );
+        let (back_0, back_1) =
+            get_amounts_for_liquidity(sqrt_current, sqrt_lower, sqrt_upper, liquidity);
 
         // Should get back close to what we put in (rounding loss is expected)
         // Accept within 1% for integer math
         let ratio_0 = back_0 as f64 / amount_0 as f64;
         let ratio_1 = back_1 as f64 / amount_1 as f64;
 
-        assert!(ratio_0 > 0.95 && ratio_0 <= 1.0,
-            "amount0 round-trip ratio={:.4} expected 0.95..1.0", ratio_0);
-        assert!(ratio_1 > 0.95 && ratio_1 <= 1.0,
-            "amount1 round-trip ratio={:.4} expected 0.95..1.0", ratio_1);
+        assert!(
+            ratio_0 > 0.95 && ratio_0 <= 1.0,
+            "amount0 round-trip ratio={:.4} expected 0.95..1.0",
+            ratio_0
+        );
+        assert!(
+            ratio_1 > 0.95 && ratio_1 <= 1.0,
+            "amount1 round-trip ratio={:.4} expected 0.95..1.0",
+            ratio_1
+        );
     }
 
     #[test]
     fn test_liquidity_below_range_only_token0() {
         // Price below range: only token0 should matter
         let sqrt_current = sqrt_q64(130.0); // below $140
-        let sqrt_lower   = sqrt_q64(140.0);
-        let sqrt_upper   = sqrt_q64(160.0);
+        let sqrt_lower = sqrt_q64(140.0);
+        let sqrt_upper = sqrt_q64(160.0);
 
         let liquidity = get_liquidity_for_amounts(
-            sqrt_current, sqrt_lower, sqrt_upper,
-            1_000_000, 999_999_999, // big token1 amount should be ignored
+            sqrt_current,
+            sqrt_lower,
+            sqrt_upper,
+            1_000_000,
+            999_999_999, // big token1 amount should be ignored
         );
 
         let liquidity_token0_only = get_liquidity_for_amounts(
-            sqrt_current, sqrt_lower, sqrt_upper,
-            1_000_000, 0, // zero token1
+            sqrt_current,
+            sqrt_lower,
+            sqrt_upper,
+            1_000_000,
+            0, // zero token1
         );
 
         // Both should produce the same result (token1 ignored below range)
-        assert_eq!(liquidity, liquidity_token0_only,
-            "below range: token1 should be ignored");
+        assert_eq!(
+            liquidity, liquidity_token0_only,
+            "below range: token1 should be ignored"
+        );
     }
 
     #[test]
     fn test_liquidity_above_range_only_token1() {
         // Price above range: only token1 should matter
         let sqrt_current = sqrt_q64(170.0); // above $160
-        let sqrt_lower   = sqrt_q64(140.0);
-        let sqrt_upper   = sqrt_q64(160.0);
+        let sqrt_lower = sqrt_q64(140.0);
+        let sqrt_upper = sqrt_q64(160.0);
 
         let liquidity = get_liquidity_for_amounts(
-            sqrt_current, sqrt_lower, sqrt_upper,
-            999_999_999, 150_000_000, // big token0 should be ignored
+            sqrt_current,
+            sqrt_lower,
+            sqrt_upper,
+            999_999_999,
+            150_000_000, // big token0 should be ignored
         );
 
         let liquidity_token1_only = get_liquidity_for_amounts(
-            sqrt_current, sqrt_lower, sqrt_upper,
-            0, 150_000_000, // zero token0
+            sqrt_current,
+            sqrt_lower,
+            sqrt_upper,
+            0,
+            150_000_000, // zero token0
         );
 
-        assert_eq!(liquidity, liquidity_token1_only,
-            "above range: token0 should be ignored");
+        assert_eq!(
+            liquidity, liquidity_token1_only,
+            "above range: token0 should be ignored"
+        );
     }
 
     #[test]

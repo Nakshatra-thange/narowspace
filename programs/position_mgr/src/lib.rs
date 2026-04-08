@@ -96,6 +96,13 @@ pub mod position_mgr {
             PositionError::InvalidTickRange
         );
 
+        let lower_array_start = tm_math::tick_to_array_start_tick(tick_lower);
+        let upper_array_start = tm_math::tick_to_array_start_tick(tick_upper);
+        let lower_bitmap_index = tm_math::array_start_to_bitmap_index(lower_array_start);
+        let upper_bitmap_index = tm_math::array_start_to_bitmap_index(upper_array_start);
+        let (lower_bitmap_word, _) = tm_math::bitmap_word_and_bit(lower_bitmap_index);
+        let (upper_bitmap_word, _) = tm_math::bitmap_word_and_bit(upper_bitmap_index);
+
         let pool = &ctx.accounts.pool;
         let sqrt_price_current = pool.sqrt_price;
         let sqrt_price_lower = tm_math::tick_to_sqrt_price_q64(tick_lower)
@@ -146,7 +153,7 @@ pub mod position_mgr {
             tick_manager::cpi::update_tick(
                 cpi_ctx,
                 tick_lower,
-                TICK_SPACING,
+                lower_bitmap_word,
                 liquidity as i128, // positive for lower tick
                 false,             // is_upper_tick = false
                 pool.fee_growth_global_0,
@@ -170,7 +177,7 @@ pub mod position_mgr {
             tick_manager::cpi::update_tick(
                 cpi_ctx,
                 tick_upper,
-                TICK_SPACING,
+                upper_bitmap_word,
                 liquidity as i128, // amount (sign is flipped by is_upper_tick=true)
                 true,              // is_upper_tick = true
                 pool.fee_growth_global_0,
@@ -303,6 +310,12 @@ pub mod position_mgr {
         let tick_lower = position.tick_lower;
         let tick_upper = position.tick_upper;
         let liquidity = position.liquidity;
+        let lower_array_start = tm_math::tick_to_array_start_tick(tick_lower);
+        let upper_array_start = tm_math::tick_to_array_start_tick(tick_upper);
+        let lower_bitmap_index = tm_math::array_start_to_bitmap_index(lower_array_start);
+        let upper_bitmap_index = tm_math::array_start_to_bitmap_index(upper_array_start);
+        let (lower_bitmap_word, _) = tm_math::bitmap_word_and_bit(lower_bitmap_index);
+        let (upper_bitmap_word, _) = tm_math::bitmap_word_and_bit(upper_bitmap_index);
 
         let sqrt_price_current = pool.sqrt_price;
         let sqrt_price_lower = tm_math::tick_to_sqrt_price_q64(tick_lower)
@@ -350,7 +363,7 @@ pub mod position_mgr {
             tick_manager::cpi::update_tick(
                 cpi_ctx,
                 tick_lower,
-                TICK_SPACING,
+                lower_bitmap_word,
                 neg_liquidity,
                 false,
                 pool.fee_growth_global_0,
@@ -374,7 +387,7 @@ pub mod position_mgr {
             tick_manager::cpi::update_tick(
                 cpi_ctx,
                 tick_upper,
-                TICK_SPACING,
+                upper_bitmap_word,
                 neg_liquidity,
                 true,
                 pool.fee_growth_global_0,
@@ -583,32 +596,19 @@ pub struct OpenPosition<'info> {
     pub position: Box<Account<'info, Position>>,
 
     // Pool — mutable because we update pool.liquidity
-    #[account(
-        mut,
-        seeds = [
-            b"pool",
-            pool.token_mint_0.as_ref(),
-            pool.token_mint_1.as_ref(),
-            &pool.fee_rate.to_le_bytes(),
-        ],
-        bump = pool.bump
-    )]
+    #[account(mut)]
     pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     // Pool's token vaults (destinations for deposited tokens)
     #[account(
         mut,
-        seeds = [b"vault_0", pool.key().as_ref()],
-        bump,
-        seeds::program = pool_core_program.key()
+        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        seeds = [b"vault_1", pool.key().as_ref()],
-        bump,
-        seeds::program = pool_core_program.key()
+        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -685,31 +685,18 @@ pub struct ClosePosition<'info> {
     )]
     pub position: Box<Account<'info, Position>>,
 
-    #[account(
-        mut,
-        seeds = [
-            b"pool",
-            pool.token_mint_0.as_ref(),
-            pool.token_mint_1.as_ref(),
-            &pool.fee_rate.to_le_bytes(),
-        ],
-        bump = pool.bump
-    )]
+    #[account(mut)]
     pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     #[account(
         mut,
-        seeds = [b"vault_0", pool.key().as_ref()],
-        bump,
-        seeds::program = pool_core_program.key()
+        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        seeds = [b"vault_1", pool.key().as_ref()],
-        bump,
-        seeds::program = pool_core_program.key()
+        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -776,30 +763,18 @@ pub struct CollectFees<'info> {
     )]
     pub position: Box<Account<'info, Position>>,
 
-    #[account(
-        seeds = [
-            b"pool",
-            pool.token_mint_0.as_ref(),
-            pool.token_mint_1.as_ref(),
-            &pool.fee_rate.to_le_bytes(),
-        ],
-        bump = pool.bump
-    )]
+    #[account()]
     pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     #[account(
         mut,
-        seeds = [b"vault_0", pool.key().as_ref()],
-        bump,
-        seeds::program = pool_core_program.key()
+        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        seeds = [b"vault_1", pool.key().as_ref()],
-        bump,
-        seeds::program = pool_core_program.key()
+        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_1: Box<Account<'info, TokenAccount>>,
 

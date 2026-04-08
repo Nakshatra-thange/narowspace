@@ -97,7 +97,9 @@ describe("pool_core", () => {
 
     const mintA = await createMint(connection, payerKp, wallet.publicKey, null, 6);
     const mintB = await createMint(connection, payerKp, wallet.publicKey, null, 6);
-    [mint0, mint1] = mintA.toBase58() < mintB.toBase58() ? [mintA, mintB] : [mintB, mintA];
+    [mint0, mint1] = Buffer.compare(mintA.toBuffer(), mintB.toBuffer()) < 0
+      ? [mintA, mintB]
+      : [mintB, mintA];
 
     const ata0 = await getOrCreateAssociatedTokenAccount(connection, payerKp, mint0, wallet.publicKey);
     const ata1 = await getOrCreateAssociatedTokenAccount(connection, payerKp, mint1, wallet.publicKey);

@@ -58,7 +58,7 @@ import {
 } from "../sdk/src/position";
 
 function sortMints(a: PublicKey, b: PublicKey): [PublicKey, PublicKey] {
-  return a.toBase58() < b.toBase58() ? [a, b] : [b, a];
+  return Buffer.compare(a.toBuffer(), b.toBuffer()) < 0 ? [a, b] : [b, a];
 }
 
 // ─── Helper: any cast for program.account ─────────────────────────────────────

@@ -18,6 +18,10 @@ import {
 } from "@solana/spl-token";
 import { tickToSqrtPriceQ64, priceToTick, nearestUsableTick } from "./src/tick_math";
 
+function comparePubkeys(a: PublicKey, b: PublicKey): number {
+  return Buffer.compare(a.toBuffer(), b.toBuffer());
+}
+
 // ─── PDA helpers ──────────────────────────────────────────────────────────────
 
 export function getPoolPDA(
@@ -26,17 +30,18 @@ export function getPoolPDA(
   mint1: PublicKey,
   feeRate: number
 ): [PublicKey, number] {
-  // Enforce canonical ordering: mint0 < mint1
-  const [m0, m1] = mint0.toBase58() < mint1.toBase58()
-    ? [mint0, mint1]
-    : [mint1, mint0];
+  const [m0, m1] =
+    comparePubkeys(mint0, mint1) < 0 ? [mint0, mint1] : [mint1, mint0];
+
+  const feeBuffer = Buffer.alloc(4);
+  feeBuffer.writeUInt32LE(feeRate, 0);
 
   return PublicKey.findProgramAddressSync(
     [
       Buffer.from("pool"),
       m0.toBuffer(),
       m1.toBuffer(),
-      Buffer.from(new Uint32Array([feeRate]).buffer),
+      feeBuffer,
     ],
     programId
   );
@@ -80,7 +85,7 @@ export async function initializePool(params: InitPoolParams): Promise<InitPoolRe
   // Enforce canonical mint ordering
   let mint0 = params.mint0;
   let mint1 = params.mint1;
-  if (mint0.toBase58() > mint1.toBase58()) {
+  if (comparePubkeys(mint0, mint1) > 0) {
     [mint0, mint1] = [mint1, mint0];
   }
 
@@ -167,7 +172,7 @@ export async function createTestTokenPair(
   const mintB = await createMint(connection, payer, payer.publicKey, null, 6);
 
   // Canonical ordering
-  const [mint0, mint1] = mintA.toBase58() < mintB.toBase58()
+  const [mint0, mint1] = comparePubkeys(mintA, mintB) < 0
     ? [mintA, mintB]
     : [mintB, mintA];
 

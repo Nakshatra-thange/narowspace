@@ -7,7 +7,8 @@
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { Program, BN } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
+import { BN } from "bn.js";
 import { PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
 import { expect } from "chai";
 
@@ -20,7 +21,7 @@ import {
   bitmapWordAndBit,
   TICK_SPACING,
   TICKS_PER_ARRAY,
-} from "../sdk/src/tick_math";
+} from "../sdk/src/tick_math.ts";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

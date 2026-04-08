@@ -6,7 +6,8 @@
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { Program, BN } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
+import { BN } from "bn.js";
 import {
   PublicKey,
   Keypair,
@@ -30,7 +31,7 @@ import {
   bitmapWordAndBit,
   TICK_SPACING,
   TICKS_PER_ARRAY,
-} from "../sdk/src/tick_math";
+} from "../sdk/src/tick_math.ts";
 
 import { quoteSwap } from "../sdk/src/swap_math";
 import { getPoolPDA, getVaultPDA, fetchPool } from "../sdk/src/pool";

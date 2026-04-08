@@ -1,7 +1,8 @@
 
 
 import * as anchor from "@coral-xyz/anchor";
-import { Program, BN } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
+import { BN } from "bn.js";
 import {
   PublicKey,
   Keypair,
@@ -15,7 +16,7 @@ import {
   mintTo,
   getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
-import { tickToSqrtPriceQ64, priceToTick, nearestUsableTick } from "./tick_math";
+import { tickToSqrtPriceQ64, priceToTick, nearestUsableTick } from "./src/tick_math";
 
 // ─── PDA helpers ──────────────────────────────────────────────────────────────
 

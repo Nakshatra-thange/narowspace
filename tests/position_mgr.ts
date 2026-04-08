@@ -20,7 +20,8 @@
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { Program, BN } from "@coral-xyz/anchor";
+import { Program} from "@coral-xyz/anchor";
+import { BN } from "bn.js";
 import {
   PublicKey,
   Keypair,
@@ -42,7 +43,7 @@ import {
   priceToTick,
   nearestUsableTick,
   TICK_SPACING,
-} from "../sdk/src/tick_math";
+} from "../sdk/src/tick_math.ts";
 
 import { getPoolPDA, getVaultPDA, fetchPool } from "../sdk/src/pool";
 import {
@@ -55,6 +56,10 @@ import {
   fetchPosition,
   quoteFees,
 } from "../sdk/src/position";
+
+function sortMints(a: PublicKey, b: PublicKey): [PublicKey, PublicKey] {
+  return a.toBase58() < b.toBase58() ? [a, b] : [b, a];
+}
 
 // ─── Helper: any cast for program.account ─────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -107,8 +112,8 @@ describe("position_mgr", () => {
     // Create token pair
     const mintA = await createMint(conn, payerKp, wallet.publicKey, null, 6);
     const mintB = await createMint(conn, payerKp, wallet.publicKey, null, 6);
-    [mint0, mint1] = mintA.toBase58() < mintB.toBase58() ? [mintA, mintB] : [mintB, mintA];
-
+  
+    [mint0, mint1] = sortMints(mintA, mintB);
     const ata0 = await getOrCreateAssociatedTokenAccount(conn, payerKp, mint0, wallet.publicKey);
     const ata1 = await getOrCreateAssociatedTokenAccount(conn, payerKp, mint1, wallet.publicKey);
     userAta0 = ata0.address;
@@ -119,7 +124,8 @@ describe("position_mgr", () => {
     await mintTo(conn, payerKp, mint1, userAta1, payerKp, 10_000_000_000);
 
     // Derive pool addresses
-    [poolPubkey] = getPoolPDA(poolProg.programId, mint0, mint1, FEE_RATE);
+    const [m0, m1] = sortMints(mint0, mint1);
+    [poolPubkey] = getPoolPDA(poolProg.programId, m0, m1, FEE_RATE);
     [vault0]     = getVaultPDA(poolProg.programId, poolPubkey, 0);
     [vault1]     = getVaultPDA(poolProg.programId, poolPubkey, 1);
 
@@ -131,8 +137,8 @@ describe("position_mgr", () => {
       .initializePool(initialSqrtPrice, FEE_RATE, initialTick)
       .accounts({
         pool:               poolPubkey,
-        tokenMint0:         mint0,
-        tokenMint1:         mint1,
+        tokenMint0:         m0,
+        tokenMint1:         m1,
         tokenVault0:        vault0,
         tokenVault1:        vault1,
         tickManagerProgram: tmProg.programId,

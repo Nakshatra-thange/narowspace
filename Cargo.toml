@@ -6,6 +6,9 @@ members = [
 ]
 resolver = "2"
 
+[patch.crates-io]
+constant_time_eq = { path = "vendor/constant_time_eq-0.4.2" }
+
 [profile.release]
 overflow-checks = true
 lto = "fat"

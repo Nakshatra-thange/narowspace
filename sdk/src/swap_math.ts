@@ -318,7 +318,7 @@ export function quoteSwap(params: {
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
-import { MIN_TICK, MAX_TICK } from "./tick_math";
+import { MIN_TICK, MAX_TICK } from "./tick_math.ts";
 
 export function tickAtSqrtPrice(sqrtPriceQ64: BN): number {
   const intPart = sqrtPriceQ64.shrn(64);

@@ -348,7 +348,7 @@ pub mod pool_core {
 // ─── Tick-loop helpers ────────────────────────────────────────────────────────
 
 const HEADER_SIZE:        usize = 8 + 4 + 4 + 32;
-const TICK_DATA_SIZE:     usize = 64;
+const TICK_DATA_SIZE:     usize = 80;
 const INITIALIZED_OFFSET: usize = 16 + 16 + 16 + 16;
 
 fn find_next_sqrt_price_target<'info>(

@@ -16,7 +16,7 @@ import {
   mintTo,
   getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
-import { tickToSqrtPriceQ64, priceToTick, nearestUsableTick } from "./src/tick_math";
+import { tickToSqrtPriceQ64, priceToTick, nearestUsableTick } from "./src/tick_math.ts";
 
 function comparePubkeys(a: PublicKey, b: PublicKey): number {
   return Buffer.compare(a.toBuffer(), b.toBuffer());

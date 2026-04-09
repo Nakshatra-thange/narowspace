@@ -3,9 +3,9 @@
  * Single entry point for the NarrowSwap SDK.
  */
 
-export * from "./tick_math";
-export * from "./swap_math";
-export * from "./pool";
+export * from "./tick_math.ts";
+export * from "./swap_math.ts";
+export * from "./pool.ts";
 
 // position.ts shares some helper names with tick_math.ts.
 // Export only the unique position-specific symbols here.
@@ -18,7 +18,7 @@ export {
   closePosition,
   collectFees,
   quoteFees,
-} from "./position";
+} from "./position.ts";
 
 export type {
   PositionState,

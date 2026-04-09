@@ -14,7 +14,7 @@
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { Program, BN, AnchorProvider } from "@coral-xyz/anchor";
+import BN from "bn.js";
 import { PublicKey, Keypair, Connection } from "@solana/web3.js";
 import * as fs from "fs";
 import * as path from "path";
@@ -22,11 +22,11 @@ import * as path from "path";
 import {
   tickToPrice,
   tickToSqrtPriceQ64,
-  fetchPool,
-  fetchPosition,
   quoteFees,
-  getVaultPDA,
-} from "../sdk/src/index";
+} from "../sdk/src/index.ts";
+
+type Program = anchor.Program;
+const { AnchorProvider } = anchor;
 
 function loadWallet(): Keypair {
   const p = process.env["WALLET_PATH"]
@@ -37,15 +37,30 @@ function loadWallet(): Keypair {
 }
 
 function loadProgram(
-  provider: AnchorProvider,
+  provider: anchor.AnchorProvider,
   programId: PublicKey,
   idlPath: string
 ): Program {
-  return new Program(
-    JSON.parse(fs.readFileSync(idlPath, "utf-8")) as anchor.Idl,
-    programId,
-    provider
-  );
+  const idl = {
+    ...(JSON.parse(fs.readFileSync(idlPath, "utf-8")) as anchor.Idl),
+    address: programId.toString(),
+  };
+  return new anchor.Program(idl, provider);
+}
+
+async function fetchDecodedAccount<T>(
+  provider: anchor.AnchorProvider,
+  idlPath: string,
+  accountName: string,
+  address: PublicKey
+): Promise<T> {
+  const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8")) as anchor.Idl;
+  const coder = new anchor.BorshCoder(idl);
+  const accountInfo = await provider.connection.getAccountInfo(address);
+  if (!accountInfo) {
+    throw new Error(`Account not found: ${address.toString()}`);
+  }
+  return coder.accounts.decode(accountName, accountInfo.data) as T;
 }
 
 // Compute token amounts for a liquidity position (mirrors Rust get_amounts_for_liquidity)
@@ -87,6 +102,7 @@ function computeTokenAmountsForDisplay(
 async function main(): Promise<void> {
   const POSITION_ADDR = process.env["POSITION"] ?? "";
   const POOL_ADDR     = process.env["POOL"]     ?? "";
+  const RPC_URL       = process.env["ANCHOR_PROVIDER_URL"] ?? "http://127.0.0.1:8899";
 
   if (!POSITION_ADDR || !POOL_ADDR) {
     console.error("Usage: POSITION=<addr> POOL=<addr> npx ts-node scripts/check_position.ts");
@@ -94,12 +110,12 @@ async function main(): Promise<void> {
   }
 
   const wallet   = loadWallet();
-  const conn     = new Connection("https://api.devnet.solana.com", "confirmed");
+  const conn     = new Connection(RPC_URL, "confirmed");
   const provider = new AnchorProvider(conn, new anchor.Wallet(wallet), { commitment: "confirmed" });
   anchor.setProvider(provider);
 
-  const poolProgId = new PublicKey("PoolCore1111111111111111111111111111111111111");
-  const posMgrId   = new PublicKey("PosMgr11111111111111111111111111111111111111");
+  const poolProgId = new PublicKey("Fn65QSQyWh7w3QmAj3qhdavTd7kGEctTPwr2M8Y1253M");
+  const posMgrId   = new PublicKey("4khnPYzUq44fr4WXRGrjbsLtAkK1L1A3K8ydQu1uuV8a");
 
   const poolProg = loadProgram(provider, poolProgId, "target/idl/pool_core.json");
   const posMgr   = loadProgram(provider, posMgrId,   "target/idl/position_mgr.json");
@@ -107,8 +123,39 @@ async function main(): Promise<void> {
   const positionPubkey = new PublicKey(POSITION_ADDR);
   const poolPubkey     = new PublicKey(POOL_ADDR);
 
-  const pool = await fetchPool(poolProg, poolPubkey);
-  const pos  = await fetchPosition(posMgr, positionPubkey);
+  const rawPool = await fetchDecodedAccount<{
+    tick_current: number;
+    fee_growth_global_0: BN;
+    fee_growth_global_1: BN;
+  }>(provider, "target/idl/pool_core.json", "Pool", poolPubkey);
+  const rawPos = await fetchDecodedAccount<{
+    owner: PublicKey;
+    nft_mint: PublicKey;
+    tick_lower: number;
+    tick_upper: number;
+    liquidity: BN;
+    fee_growth_checkpoint_0: BN;
+    fee_growth_checkpoint_1: BN;
+    tokens_owed_0: BN;
+    tokens_owed_1: BN;
+  }>(provider, "target/idl/position_mgr.json", "Position", positionPubkey);
+
+  const pool = {
+    tickCurrent: rawPool.tick_current,
+    feeGrowthGlobal0: rawPool.fee_growth_global_0,
+    feeGrowthGlobal1: rawPool.fee_growth_global_1,
+  };
+  const pos = {
+    owner: rawPos.owner,
+    nftMint: rawPos.nft_mint,
+    tickLower: rawPos.tick_lower,
+    tickUpper: rawPos.tick_upper,
+    liquidity: rawPos.liquidity,
+    feeGrowthCheckpoint0: rawPos.fee_growth_checkpoint_0,
+    feeGrowthCheckpoint1: rawPos.fee_growth_checkpoint_1,
+    tokensOwed0: rawPos.tokens_owed_0,
+    tokensOwed1: rawPos.tokens_owed_1,
+  };
 
   const currentPrice = tickToPrice(pool.tickCurrent);
   const lowerPrice   = tickToPrice(pos.tickLower);

@@ -6,7 +6,7 @@
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { Program, BN } from "@coral-xyz/anchor";
+import { BN } from "bn.js";
 import {
   PublicKey,
   SystemProgram,
@@ -19,8 +19,10 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 
-import { tickToSqrtPriceQ64, nearestUsableTick, priceToTick } from "./tick_math";
-import { getPoolPDA, getVaultPDA, PoolState } from "../pool";
+import { tickToSqrtPriceQ64, nearestUsableTick, priceToTick } from "./tick_math.ts";
+import { getPoolPDA, getVaultPDA, type PoolState } from "./pool.ts";
+
+type Program<T = unknown> = anchor.Program<T>;
 
 // ─── PDA helpers ──────────────────────────────────────────────────────────────
 

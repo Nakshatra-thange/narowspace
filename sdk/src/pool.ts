@@ -6,7 +6,7 @@
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { Program, BN } from "@coral-xyz/anchor";
+import { BN } from "bn.js";
 import {
   PublicKey,
   Keypair,
@@ -19,7 +19,9 @@ import {
   mintTo,
   getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
-import { tickToSqrtPriceQ64, priceToTick, nearestUsableTick } from "./tick_math";
+import { tickToSqrtPriceQ64, priceToTick, nearestUsableTick } from "./tick_math.ts";
+
+type Program<T = unknown> = anchor.Program<T>;
 
 function comparePubkeys(a: PublicKey, b: PublicKey): number {
   return Buffer.compare(a.toBuffer(), b.toBuffer());

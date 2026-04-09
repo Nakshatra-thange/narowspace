@@ -53,6 +53,8 @@ let MINT_0       = process.env["MINT_0"]       ?? "";
 let MINT_1       = process.env["MINT_1"]       ?? "";
 let USER_ATA_0   = process.env["USER_ATA_0"]   ?? "";
 let USER_ATA_1   = process.env["USER_ATA_1"]   ?? "";
+const SWAP_AMOUNT_RAW = process.env["SWAP_AMOUNT_RAW"] ?? "1000000";
+const ZERO_FOR_ONE = (process.env["ZERO_FOR_ONE"] ?? "true") !== "false";
 const RPC_URL     = process.env["ANCHOR_PROVIDER_URL"] ?? "http://127.0.0.1:8899";
 const TM_PROGRAM_ID   = "9V4BX9p6bRy37gWMDR5xatdntPQKdzU6DXpf3gqsBumW";
 const POOL_PROGRAM_ID = "Fn65QSQyWh7w3QmAj3qhdavTd7kGEctTPwr2M8Y1253M";
@@ -183,10 +185,7 @@ async function main(): Promise<void> {
   console.log("  token1:", Number(ata1Before.amount).toLocaleString());
 
   // ── Quote the swap off-chain ──────────────────────────────────────────────────
-  // Swap 100 token0 for token1 (zero_for_one = true, price goes down)
-
-  const SWAP_AMOUNT_0 = new BN(1_000_000); // 1 token0
-  const ZERO_FOR_ONE  = true;
+  const swapAmount = new BN(SWAP_AMOUNT_RAW);
 
   // Find tick arrays for this swap (arrays below current tick)
   const arraysForSwap: PublicKey[] = [];
@@ -196,13 +195,16 @@ async function main(): Promise<void> {
     arraysForSwap.push(arrPDA);
   }
 
-  // Allow a modest move down for the demo swap.
-  const priceLimit = currentPrice * 0.99;
-  const sqrtPriceLimitF = Math.sqrt(priceLimit);
-  const sqrtPriceLimit = new BN(
-    Math.floor(sqrtPriceLimitF * 2 ** 32).toString()
-  ).shln(32);
-
+  let sqrtPriceLimit: BN;
+  if (ZERO_FOR_ONE) {
+    const priceLimit = currentPrice * 0.99;
+    const sqrtPriceLimitF = Math.sqrt(priceLimit);
+    sqrtPriceLimit = new BN(Math.floor(sqrtPriceLimitF * 2 ** 32).toString()).shln(32);
+  } else {
+    const priceLimit = currentPrice * 1.01;
+    const sqrtPriceLimitF = Math.sqrt(priceLimit);
+    sqrtPriceLimit = new BN(Math.floor(sqrtPriceLimitF * 2 ** 32).toString()).shln(32);
+  }
   let amountOutMin = new BN(0);
   try {
     const quote = quoteSwap({
@@ -211,13 +213,14 @@ async function main(): Promise<void> {
       tickCurrent:      pool.tickCurrent,
       feeRate:          new BN(pool.feeRate),
       zeroForOne:       ZERO_FOR_ONE,
-      amount:           SWAP_AMOUNT_0,
+      amount:           swapAmount,
       sqrtPriceLimit,
       initializedTicks: [],
     });
 
     console.log("\nSwap quote (off-chain):");
-    console.log("  Input:        ", SWAP_AMOUNT_0.toString(), "token0");
+    console.log("  Direction:    ", ZERO_FOR_ONE ? "token0 -> token1" : "token1 -> token0");
+    console.log("  Input:        ", swapAmount.toString(), ZERO_FOR_ONE ? "token0" : "token1");
     console.log("  Expected out: ", quote.amountOut.toString(), "token1");
     console.log("  Fee:          ", quote.feeAmount.toString(), "token0");
     console.log("  Price impact: ", quote.priceImpactBps, "bps");
@@ -238,7 +241,7 @@ async function main(): Promise<void> {
 
   const swapTx = await poolProg.methods
     .swap(
-      SWAP_AMOUNT_0,
+      swapAmount,
       ZERO_FOR_ONE,
       sqrtPriceLimit,
       amountOutMin

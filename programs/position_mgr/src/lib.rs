@@ -596,19 +596,24 @@ pub struct OpenPosition<'info> {
     pub position: Box<Account<'info, Position>>,
 
     // Pool — mutable because we update pool.liquidity
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = pool.initialized @ PositionError::PoolNotInitialized
+    )]
     pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     // Pool's token vaults (destinations for deposited tokens)
     #[account(
         mut,
-        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount,
+        constraint = token_vault_0.mint == pool.token_mint_0 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount,
+        constraint = token_vault_1.mint == pool.token_mint_1 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -685,18 +690,23 @@ pub struct ClosePosition<'info> {
     )]
     pub position: Box<Account<'info, Position>>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = pool.initialized @ PositionError::PoolNotInitialized
+    )]
     pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     #[account(
         mut,
-        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount,
+        constraint = token_vault_0.mint == pool.token_mint_0 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount,
+        constraint = token_vault_1.mint == pool.token_mint_1 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -763,18 +773,22 @@ pub struct CollectFees<'info> {
     )]
     pub position: Box<Account<'info, Position>>,
 
-    #[account()]
+    #[account(
+        constraint = pool.initialized @ PositionError::PoolNotInitialized
+    )]
     pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     #[account(
         mut,
-        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount,
+        constraint = token_vault_0.mint == pool.token_mint_0 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount,
+        constraint = token_vault_1.mint == pool.token_mint_1 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -804,6 +818,8 @@ pub struct CollectFees<'info> {
 
 #[error_code]
 pub enum PositionError {
+    #[msg("Pool is not initialized")]
+    PoolNotInitialized,
     #[msg("tick_lower must be < tick_upper and both multiples of TICK_SPACING")]
     InvalidTickRange,
     #[msg("Computed liquidity is zero — increase deposit amounts")]

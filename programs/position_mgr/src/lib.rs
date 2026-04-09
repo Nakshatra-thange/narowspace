@@ -214,14 +214,15 @@ pub mod position_mgr {
             )?;
         }
 
-        let cpi_ctx = CpiContext::new(
-            ctx.accounts.pool_core_program.to_account_info(),
-            pool_core::cpi::accounts::AdjustLiquidity {
-                pool: ctx.accounts.pool.to_account_info(),
-                authority: ctx.accounts.owner.to_account_info(),
-            },
-        );
-        pool_core::cpi::adjust_liquidity(cpi_ctx, liquidity as i128)?;
+        // ── Update pool liquidity if current price is inside this range ─────────
+        {
+            let pool_mut = &mut ctx.accounts.pool;
+            let in_range =
+                pool_mut.tick_current >= tick_lower && pool_mut.tick_current < tick_upper;
+            if in_range {
+                pool_mut.liquidity = pool_mut.liquidity.saturating_add(liquidity);
+            }
+        }
 
         // ── Mint NFT receipt (1 token, 0 decimals) ──────────────────────────────
         {
@@ -394,45 +395,82 @@ pub mod position_mgr {
             )?;
         }
 
-        // ── Update pool liquidity and withdraw through pool_core ───────────────
-        let cpi_ctx = CpiContext::new(
-            ctx.accounts.pool_core_program.to_account_info(),
-            pool_core::cpi::accounts::AdjustLiquidity {
-                pool: ctx.accounts.pool.to_account_info(),
-                authority: ctx.accounts.owner.to_account_info(),
-            },
-        );
-        pool_core::cpi::adjust_liquidity(cpi_ctx, -(liquidity as i128))?;
+        // ── Update pool liquidity if in range ──────────────────────────────────
+        {
+            let pool_mut = &mut ctx.accounts.pool;
+            let in_range =
+                pool_mut.tick_current >= tick_lower && pool_mut.tick_current < tick_upper;
+            if in_range {
+                pool_mut.liquidity = pool_mut.liquidity.saturating_sub(liquidity);
+            }
+        }
 
-        if total_0 > 0 || total_1 > 0 {
-            let cpi_ctx = CpiContext::new(
-                ctx.accounts.pool_core_program.to_account_info(),
-                pool_core::cpi::accounts::TransferFromPool {
-                    pool: ctx.accounts.pool.to_account_info(),
-                    token_vault_0: ctx.accounts.token_vault_0.to_account_info(),
-                    token_vault_1: ctx.accounts.token_vault_1.to_account_info(),
-                    user_token_account_0: ctx.accounts.user_token_account_0.to_account_info(),
-                    user_token_account_1: ctx.accounts.user_token_account_1.to_account_info(),
-                    authority: ctx.accounts.owner.to_account_info(),
-                    token_program: ctx.accounts.token_program.to_account_info(),
-                },
-            );
-            pool_core::cpi::transfer_from_pool(cpi_ctx, total_0, total_1)?;
+        // ── Transfer tokens back to user ───────────────────────────────────────
+        // Pool vaults are owned by pool PDA — we sign with pool seeds
+        let pool_account = &ctx.accounts.pool;
+        let mint_0_key = pool_account.token_mint_0;
+        let mint_1_key = pool_account.token_mint_1;
+        let fee_rate_bytes = pool_account.fee_rate.to_le_bytes();
+        let pool_bump = pool_account.bump;
+        let pool_seeds = &[
+            b"pool".as_ref(),
+            mint_0_key.as_ref(),
+            mint_1_key.as_ref(),
+            fee_rate_bytes.as_ref(),
+            &[pool_bump],
+        ];
+        let signer_seeds = &[&pool_seeds[..]];
+
+        if total_0 > 0 {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.token_vault_0.to_account_info(),
+                        to: ctx.accounts.user_token_account_0.to_account_info(),
+                        authority: ctx.accounts.pool.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                total_0,
+            )?;
+        }
+
+        if total_1 > 0 {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.token_vault_1.to_account_info(),
+                        to: ctx.accounts.user_token_account_1.to_account_info(),
+                        authority: ctx.accounts.pool.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                total_1,
+            )?;
         }
 
         // ── Burn NFT ────────────────────────────────────────────────────────────
 
-        token::burn(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Burn {
-                    mint: ctx.accounts.nft_mint.to_account_info(),
-                    from: ctx.accounts.nft_token_account.to_account_info(),
-                    authority: ctx.accounts.owner.to_account_info(),
-                },
-            ),
-            1,
-        )?;
+        {
+            let mint_key = ctx.accounts.nft_mint.key();
+            let position_seeds = &[b"position".as_ref(), mint_key.as_ref(), &[position.bump]];
+            let signer = &[&position_seeds[..]];
+
+            token::burn(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Burn {
+                        mint: ctx.accounts.nft_mint.to_account_info(),
+                        from: ctx.accounts.nft_token_account.to_account_info(),
+                        authority: ctx.accounts.position.to_account_info(),
+                    },
+                    signer,
+                ),
+                1,
+            )?;
+        }
 
         emit!(PositionClosedEvent {
             position: ctx.accounts.position.key(),
@@ -479,20 +517,48 @@ pub mod position_mgr {
         position.tokens_owed_0 = 0;
         position.tokens_owed_1 = 0;
 
-        if total_0 > 0 || total_1 > 0 {
-            let cpi_ctx = CpiContext::new(
-                ctx.accounts.pool_core_program.to_account_info(),
-                pool_core::cpi::accounts::TransferFromPool {
-                    pool: ctx.accounts.pool.to_account_info(),
-                    token_vault_0: ctx.accounts.token_vault_0.to_account_info(),
-                    token_vault_1: ctx.accounts.token_vault_1.to_account_info(),
-                    user_token_account_0: ctx.accounts.user_token_account_0.to_account_info(),
-                    user_token_account_1: ctx.accounts.user_token_account_1.to_account_info(),
-                    authority: ctx.accounts.owner.to_account_info(),
-                    token_program: ctx.accounts.token_program.to_account_info(),
-                },
-            );
-            pool_core::cpi::transfer_from_pool(cpi_ctx, total_0, total_1)?;
+        // Transfer fees from pool vaults to user
+        let mint_0_key = pool.token_mint_0;
+        let mint_1_key = pool.token_mint_1;
+        let fee_rate_bytes = pool.fee_rate.to_le_bytes();
+        let pool_bump = pool.bump;
+        let pool_seeds = &[
+            b"pool".as_ref(),
+            mint_0_key.as_ref(),
+            mint_1_key.as_ref(),
+            fee_rate_bytes.as_ref(),
+            &[pool_bump],
+        ];
+        let signer_seeds = &[&pool_seeds[..]];
+
+        if total_0 > 0 {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.token_vault_0.to_account_info(),
+                        to: ctx.accounts.user_token_account_0.to_account_info(),
+                        authority: ctx.accounts.pool.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                total_0,
+            )?;
+        }
+
+        if total_1 > 0 {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.token_vault_1.to_account_info(),
+                        to: ctx.accounts.user_token_account_1.to_account_info(),
+                        authority: ctx.accounts.pool.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                total_1,
+            )?;
         }
 
         emit!(FeesCollectedEvent {
@@ -530,24 +596,19 @@ pub struct OpenPosition<'info> {
     pub position: Box<Account<'info, Position>>,
 
     // Pool — mutable because we update pool.liquidity
-    #[account(
-        mut,
-        constraint = pool.initialized @ PositionError::PoolNotInitialized
-    )]
+    #[account(mut)]
     pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     // Pool's token vaults (destinations for deposited tokens)
     #[account(
         mut,
-        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount,
-        constraint = token_vault_0.mint == pool.token_mint_0 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount,
-        constraint = token_vault_1.mint == pool.token_mint_1 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -624,23 +685,18 @@ pub struct ClosePosition<'info> {
     )]
     pub position: Box<Account<'info, Position>>,
 
-    #[account(
-        mut,
-        constraint = pool.initialized @ PositionError::PoolNotInitialized
-    )]
+    #[account(mut)]
     pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     #[account(
         mut,
-        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount,
-        constraint = token_vault_0.mint == pool.token_mint_0 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount,
-        constraint = token_vault_1.mint == pool.token_mint_1 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -707,22 +763,18 @@ pub struct CollectFees<'info> {
     )]
     pub position: Box<Account<'info, Position>>,
 
-    #[account(
-        constraint = pool.initialized @ PositionError::PoolNotInitialized
-    )]
+    #[account()]
     pub pool: Box<Account<'info, pool_core::state::Pool>>,
 
     #[account(
         mut,
-        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount,
-        constraint = token_vault_0.mint == pool.token_mint_0 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_0.key() == pool.token_vault_0 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_0: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount,
-        constraint = token_vault_1.mint == pool.token_mint_1 @ PositionError::InvalidTokenAccount
+        constraint = token_vault_1.key() == pool.token_vault_1 @ PositionError::InvalidTokenAccount
     )]
     pub token_vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -752,8 +804,6 @@ pub struct CollectFees<'info> {
 
 #[error_code]
 pub enum PositionError {
-    #[msg("Pool is not initialized")]
-    PoolNotInitialized,
     #[msg("tick_lower must be < tick_upper and both multiples of TICK_SPACING")]
     InvalidTickRange,
     #[msg("Computed liquidity is zero — increase deposit amounts")]

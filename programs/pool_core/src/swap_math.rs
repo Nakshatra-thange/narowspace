@@ -286,9 +286,19 @@ pub fn compute_swap_step(
     } else {
         // Not enough — price moves partway, stops when amount is exhausted
         sqrt_price_next = if zero_for_one {
-            get_next_sqrt_price_from_amount_0(sqrt_price_current, liquidity, amount_remaining_net, true)
+            get_next_sqrt_price_from_amount_0(
+                sqrt_price_current,
+                liquidity,
+                amount_remaining_net,
+                true,
+            )
         } else {
-            get_next_sqrt_price_from_amount_1(sqrt_price_current, liquidity, amount_remaining_net, true)
+            get_next_sqrt_price_from_amount_1(
+                sqrt_price_current,
+                liquidity,
+                amount_remaining_net,
+                true,
+            )
         };
 
         // Actual amounts moved at this partial step
@@ -373,9 +383,9 @@ mod tests {
         // If price moves from √4 to √9 with L=1000:
         // Δtoken1 = 1000 × (√9 - √4) / 2^64 ... but in Q64 terms:
         // Δtoken1 = L × (sqrt_b - sqrt_a) >> 64
-        let sqrt_a = sqrt_q64(4.0);  // 2.0 in Q64
-        let sqrt_b = sqrt_q64(9.0);  // 3.0 in Q64
-        let liquidity = Q64;          // 1.0 in raw, using Q64 as "1 unit" for test
+        let sqrt_a = sqrt_q64(4.0); // 2.0 in Q64
+        let sqrt_b = sqrt_q64(9.0); // 3.0 in Q64
+        let liquidity = Q64; // 1.0 in raw, using Q64 as "1 unit" for test
 
         let delta = get_amount_1_delta(sqrt_a, sqrt_b, liquidity, false);
 
@@ -384,31 +394,32 @@ mod tests {
         let expected = Q64; // 1 "unit"
         let ratio = delta as f64 / expected as f64;
         // Within 1% — Q64 rounding is expected
-        assert!(ratio > 0.99 && ratio < 1.01, "delta={} expected≈{}", delta, expected);
+        assert!(
+            ratio > 0.99 && ratio < 1.01,
+            "delta={} expected≈{}",
+            delta,
+            expected
+        );
     }
 
     #[test]
     fn test_swap_step_full_fill() {
         // Scenario: swap with enough input to fully reach target price
         let sqrt_current = sqrt_q64(100.0); // current price = 100
-        let sqrt_target  = sqrt_q64(121.0); // target  price = 121 (next tick)
-        let liquidity    = 1_000_000u128 * Q64 >> 32; // some liquidity
-        let fee_rate     = DEFAULT_FEE_RATE;
+        let sqrt_target = sqrt_q64(121.0); // target  price = 121 (next tick)
+        let liquidity = 1_000_000u128 * Q64 >> 32; // some liquidity
+        let fee_rate = DEFAULT_FEE_RATE;
 
         // Amount that should be MORE than enough to reach target
         let amount_in = u128::MAX / 2;
 
-        let result = compute_swap_step(
-            sqrt_current,
-            sqrt_target,
-            liquidity,
-            amount_in,
-            fee_rate,
-        );
+        let result = compute_swap_step(sqrt_current, sqrt_target, liquidity, amount_in, fee_rate);
 
         // Since we had more than enough, we should have reached the target exactly
-        assert_eq!(result.sqrt_price_next, sqrt_target,
-            "should reach target when sufficient input");
+        assert_eq!(
+            result.sqrt_price_next, sqrt_target,
+            "should reach target when sufficient input"
+        );
         assert!(result.amount_out > 0, "should produce output tokens");
         assert!(result.fee_amount > 0, "should collect fee");
     }
@@ -417,9 +428,9 @@ mod tests {
     fn test_swap_step_partial_fill() {
         // Scenario: swap with very small input — shouldn't reach target tick
         let sqrt_current = sqrt_q64(100.0);
-        let sqrt_target  = sqrt_q64(81.0);  // price going DOWN (zero_for_one)
-        let liquidity    = 1_000_000u128;
-        let tiny_amount  = 1u128; // almost nothing
+        let sqrt_target = sqrt_q64(81.0); // price going DOWN (zero_for_one)
+        let liquidity = 1_000_000u128;
+        let tiny_amount = 1u128; // almost nothing
 
         let result = compute_swap_step(
             sqrt_current,
@@ -430,9 +441,11 @@ mod tests {
         );
 
         // With tiny input, price should not reach the target
-        assert!(result.sqrt_price_next > sqrt_target,
+        assert!(
+            result.sqrt_price_next > sqrt_target,
             "price should not reach target with tiny input. got={}  target={}",
-            result.sqrt_price_next, sqrt_target
+            result.sqrt_price_next,
+            sqrt_target
         );
     }
 

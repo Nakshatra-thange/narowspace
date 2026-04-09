@@ -72,15 +72,15 @@ pub struct Pool {
     pub tick_manager_program: Pubkey,
 
     /// Current price state
-    pub sqrt_price: u128,      // Q64.64
+    pub sqrt_price: u128, // Q64.64
     pub tick_current: i32,
-    pub _padding: [u8; 4],    // align i32 to 8 bytes
+    pub _padding: [u8; 4], // align i32 to 8 bytes
 
     /// Active liquidity (changes at tick crossings)
     pub liquidity: u128,
 
     /// Fee configuration
-    pub fee_rate: u32,        // e.g. 3000 = 0.3%
+    pub fee_rate: u32, // e.g. 3000 = 0.3%
 
     /// Fee accumulators (per unit of liquidity, ever)
     pub fee_growth_global_0: u128,

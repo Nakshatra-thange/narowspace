@@ -6,9 +6,9 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-pool_core = "FYVB5Y9qLfhkfMm9r2TzfdPM8rkyR4gzHZfQsxZdrJMS"
-position_mgr = "3XhCVxvUtFBCpcg4TgVJcD8JerSStCDF1cadGVYtVR45"
-tick_manager = "Wy4kPFajGnvDFuEEMsdrC8cefytxDja8kpvRfvhzyoD"
+pool_core = "Fn65QSQyWh7w3QmAj3qhdavTd7kGEctTPwr2M8Y1253M"
+position_mgr = "4khnPYzUq44fr4WXRGrjbsLtAkK1L1A3K8ydQu1uuV8a"
+tick_manager = "9V4BX9p6bRy37gWMDR5xatdntPQKdzU6DXpf3gqsBumW"
 
 [registry]
 url = "https://api.apr.dev"

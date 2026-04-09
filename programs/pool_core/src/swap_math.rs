@@ -334,21 +334,26 @@ pub fn compute_swap_step(
 /// Both inputs are Q64, product would be Q128, we shift back to Q64.
 #[inline]
 pub fn mul_q64(a: u128, b: u128) -> u128 {
-    // Split to avoid overflow: (a_hi*2^64 + a_lo) * (b_hi*2^64 + b_lo)
-    // We only need the Q64 result = (full product) >> 64
+    // (a_hi*2^64 + a_lo) * (b_hi*2^64 + b_lo) >> 64
+    // = (a_hi*b_hi)<<64 + a_hi*b_lo + a_lo*b_hi + ((a_lo*b_lo)>>64)
+    let mask = 0xFFFF_FFFF_FFFF_FFFFu128;
     let a_hi = a >> 64;
-    let a_lo = a & 0xFFFF_FFFF_FFFF_FFFF;
+    let a_lo = a & mask;
     let b_hi = b >> 64;
-    let b_lo = b & 0xFFFF_FFFF_FFFF_FFFF;
+    let b_lo = b & mask;
 
-    // hi×hi contributes at Q128 level (shift back 64 = Q64)
-    let hi_hi = a_hi.saturating_mul(b_hi);
-    // hi×lo and lo×hi contribute at Q64 level
-    let hi_lo = (a_hi.saturating_mul(b_lo)) >> 64;
-    let lo_hi = (a_lo.saturating_mul(b_hi)) >> 64;
-    // lo×lo contributes below Q64 (ignore for truncation)
+    let hi_hi = a_hi
+        .saturating_mul(b_hi)
+        .checked_shl(64)
+        .unwrap_or(u128::MAX);
+    let hi_lo = a_hi.saturating_mul(b_lo);
+    let lo_hi = a_lo.saturating_mul(b_hi);
+    let lo_lo = a_lo.saturating_mul(b_lo) >> 64;
 
-    hi_hi.saturating_add(hi_lo).saturating_add(lo_hi)
+    hi_hi
+        .saturating_add(hi_lo)
+        .saturating_add(lo_hi)
+        .saturating_add(lo_lo)
 }
 
 // ─── Unit tests ───────────────────────────────────────────────────────────────

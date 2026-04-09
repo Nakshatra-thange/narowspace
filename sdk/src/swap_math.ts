@@ -33,7 +33,16 @@ export function amountLessFee(grossAmount: BN, feeRate: BN): BN {
 // ─── Q64.64 multiply ──────────────────────────────────────────────────────────
 
 function mulQ64(a: BN, b: BN): BN {
-  return a.mul(b).shrn(64);
+  const mask = new BN("ffffffffffffffff", 16);
+  const aHi = a.shrn(64);
+  const aLo = a.and(mask);
+  const bHi = b.shrn(64);
+  const bLo = b.and(mask);
+
+  return aHi.mul(bHi).shln(64)
+    .add(aHi.mul(bLo))
+    .add(aLo.mul(bHi))
+    .add(aLo.mul(bLo).shrn(64));
 }
 
 // ─── Amount delta formulas ────────────────────────────────────────────────────

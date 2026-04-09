@@ -185,7 +185,7 @@ async function main(): Promise<void> {
   // ── Quote the swap off-chain ──────────────────────────────────────────────────
   // Swap 100 token0 for token1 (zero_for_one = true, price goes down)
 
-  const SWAP_AMOUNT_0 = new BN(100_000); // 0.1 token0
+  const SWAP_AMOUNT_0 = new BN(1_000_000); // 1 token0
   const ZERO_FOR_ONE  = true;
 
   // Find tick arrays for this swap (arrays below current tick)
@@ -196,8 +196,12 @@ async function main(): Promise<void> {
     arraysForSwap.push(arrPDA);
   }
 
-  // Keep the swap close to the current price to avoid large demo moves.
-  const sqrtPriceLimit = pool.sqrtPrice.subn(1_000);
+  // Allow a modest move down for the demo swap.
+  const priceLimit = currentPrice * 0.99;
+  const sqrtPriceLimitF = Math.sqrt(priceLimit);
+  const sqrtPriceLimit = new BN(
+    Math.floor(sqrtPriceLimitF * 2 ** 32).toString()
+  ).shln(32);
 
   let amountOutMin = new BN(0);
   try {

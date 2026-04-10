@@ -9,7 +9,7 @@ pub struct TickData {
     pub fee_growth_outside_0:  u128,  
     pub fee_growth_outside_1:  u128,  
     pub initialized:           u8,
-    pub _padding:              [u8; 15], // align to 16 bytes
+    pub _padding:              [u8; 15], 
 }
 
 #[account(zero_copy)]
@@ -55,7 +55,7 @@ impl TickArray {
 pub struct TickBitmap {
     pub pool: Pubkey,
     pub word_index: i32,
-    pub initialized_arrays: u8,  // 8 bits = 8 arrays
+    pub initialized_arrays: u8, 
     pub _padding: [u8; 3],
 }
 

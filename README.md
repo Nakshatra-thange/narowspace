@@ -212,6 +212,18 @@ The architecture is identical; only the precision differs.
 
 ---
 
+## Result 
+
+Running NarrowSwap on a local Solana validator produced exactly the behavior the math predicts. A pool was initialized at $150 with 354,060,307 units of liquidity concentrated in the $140–$160 range. 
+
+A swap of 1,000,000 token0 executed at an effective price of $149.29, collecting 854,384 token0 in fees at the 0.3% rate — numbers that match the off-chain quote from the TypeScript SDK to the last digit. 
+
+The position inspector then showed the consequence of concentrated liquidity in stark terms: after the swap moved price to $2,969, the position was entirely out of range, holding 291,021,797 token1 and zero token0. Every SOL-equivalent had been sold as price rose through the range and out the other side. 
+
+The NFT receipt, the fee accumulator, the pool liquidity counter — all updated correctly across three programs communicating only through CPI calls, with no shared state.
+
+---
+
 ## Technical highlights
 
 - **Three-program CPI architecture**: position_mgr calls tick_manager; pool_core reads tick_manager accounts directly during the swap loop
